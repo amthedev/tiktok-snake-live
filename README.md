@@ -113,6 +113,20 @@ repositório.
   de hospedagem). Para live, o placar da sessão é o que importa.
 - No OBS, aponte a fonte Navegador para a URL pública (`https://SEU-SUBDOMINIO.squareweb.app/?obs=1`).
 
+## Problemas comuns
+
+**"Failed to sign a request: This endpoint requires a Business plan"**
+Já corrigido: o jogo não busca mais o catálogo de presentes do TikTok ao conectar (essa rota
+virou paga). O nome, o valor e a imagem do presente vêm no próprio evento da live, então nada
+se perde. Se você tiver um plano Business e quiser o catálogo, use `ENABLE_EXTENDED_GIFT_INFO=true`.
+
+**"O usuário não está ao vivo. Aguardando a live começar…"**
+Não é erro: a pessoa não está transmitindo agora. O jogo fica checando sozinho e conecta na hora
+em que a live começar.
+
+**"a porta 3000 já está em uso"**
+Já existe um servidor rodando — use o que está aberto, ou defina `PORT=3001` no `.env`.
+
 ## Testes
 
 ```bash

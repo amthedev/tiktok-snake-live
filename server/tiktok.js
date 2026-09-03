@@ -215,7 +215,12 @@ export class TikTokBridge extends EventEmitter {
     // the production path, since cloud hosts may have no env-var UI) or from the environment.
     const savedKey = str(this.stats?.settings?.signApiKey, '');
     const opts = {
-      enableExtendedGiftInfo: true,
+      // enableExtendedGiftInfo fetches TikTok's `gift/list/` through the SIGNED route, which the
+      // sign provider now gates behind a paid Business plan ("This endpoint requires a Business
+      // plan" on connect). We do not need it: the v3 gift event already embeds name, coin value
+      // and image (see normalizeGift), so the gift catalogue lookup is pure overhead. Opt in with
+      // ENABLE_EXTENDED_GIFT_INFO=true only if you actually hold a Business-plan key.
+      enableExtendedGiftInfo: /^(1|true|yes)$/i.test(str(process.env.ENABLE_EXTENDED_GIFT_INFO, '')),
       processInitialData: false,
       signApiKey: savedKey || process.env.SIGN_API_KEY || undefined,
     };
