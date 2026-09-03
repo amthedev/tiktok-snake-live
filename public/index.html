@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Cobra 3D · AO VIVO — Overlay</title>
+  <!-- Three.js served from node_modules (SPEC §0). No CDN, no Google Fonts: the overlay works offline inside OBS. -->
+  <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+  <link rel="stylesheet" href="/css/overlay.css">
+</head>
+<body>
+  <!-- 3D stage: the renderer appends its canvas here (SPEC §7). -->
+  <div id="stage" aria-hidden="true"></div>
+
+  <!-- HUD skeleton: hud.js fills each band (SPEC §8). Band ids are reused by createHud(). -->
+  <div id="hud" class="hud" aria-live="polite">
+    <header id="hud-top" class="band band-top"></header>
+    <section id="hud-score" class="band band-score"></section>
+    <section id="hud-board" class="band band-board"></section>
+    <section id="hud-leader" class="band band-leader"></section>
+    <section id="hud-chat" class="band band-chat"></section>
+    <div id="hud-confetti" class="confetti hidden"></div>
+  </div>
+
+  <!-- Dev mini-panel (hidden with ?obs=1). Buttons call the sim API; main.js wires them. -->
+  <aside id="devpanel" aria-label="Painel de desenvolvimento">
+    <div class="dev-title">Dev · simular</div>
+    <button type="button" data-action="gift:rose" title="Vilão: Rosa (1 bomba)">🌹 Rosa<kbd>3</kbd></button>
+    <button type="button" data-action="gift:lion" title="Vilão supremo: Leão (40 bombas + mordida)">🦁 Leão<kbd>4</kbd></button>
+    <button type="button" data-action="gift:moto" title="Vilão: Moto (20 bombas + atropelo)">🏍️ Moto</button>
+    <button type="button" data-action="gift:gg" title="Herói: GG (+1 comida dourada)">🎮 GG<kbd>5</kbd></button>
+    <button type="button" data-action="gift:crane" title="Herói: Tsuru (cresce +3)">🕊️ Tsuru</button>
+    <button type="button" data-action="gift:swan" title="Herói: Cisne (limpa bombas)">🦢 Cisne</button>
+    <button type="button" data-action="gift:galaxy" title="Herói: Galáxia (escudo 30s)">🌌 Galáxia<kbd>6</kbd></button>
+    <button type="button" data-action="gift:universe" title="Herói supremo: Universo TikTok">🌠 Universo</button>
+    <button type="button" data-action="chat" title="Simular mensagem no chat">💬 Chat</button>
+    <button type="button" data-action="like" title="Simular curtidas">❤️ Like</button>
+    <button type="button" data-action="follow" title="Simular novo seguidor">➕ Seguir</button>
+    <button type="button" data-action="apple" title="Garantir uma maçã no tabuleiro">🍎 Maçã<kbd>1</kbd></button>
+    <button type="button" data-action="bomb" title="Soltar uma bomba local">💣 Bomba<kbd>2</kbd></button>
+    <button type="button" data-action="new_round" title="Nova rodada">🔄 Nova rodada<kbd>N</kbd></button>
+    <button type="button" data-action="pause" title="Pausar / retomar">⏯ Pausar<kbd>P</kbd></button>
+    <button type="button" data-action="hud" title="Mostrar / esconder HUD">👁 HUD<kbd>H</kbd></button>
+    <button type="button" data-action="audio" title="Som ligado / desligado">🔊 Som</button>
+    <div class="dev-status" id="dev-status">iniciando…</div>
+  </aside>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cobra 3D — teste do renderizador</title>
+  <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #05070f; color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    #stage { position: absolute; inset: 0; }
+    #help { position: absolute; left: 10px; top: 10px; z-index: 5; font-size: 12px; line-height: 1.5;
+      background: rgba(8,14,30,.72); border: 1px solid rgba(255,255,255,.15); border-radius: 10px; padding: 8px 10px;
+      backdrop-filter: blur(6px); max-width: 300px; }
+    #help b { color: #22d3ee; }
+    #stats { position: absolute; right: 10px; top: 10px; z-index: 5; font: 12px/1.5 ui-monospace, Menlo, monospace;
+      background: rgba(8,14,30,.72); border: 1px solid rgba(255,255,255,.15); border-radius: 10px; padding: 8px 10px; white-space: pre; }
+    .guide { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(251,191,36,.7); z-index: 4; pointer-events: none; }
+    .guide span { position: absolute; right: 8px; top: -16px; font-size: 11px; color: #fbbf24; }
+    #wguide { position: absolute; top: 0; bottom: 0; border-left: 1px dashed rgba(52,211,153,.6); border-right: 1px dashed rgba(52,211,153,.6); z-index: 4; pointer-events: none; }
+    #rect { position: absolute; border: 2px solid rgba(251,113,133,.9); z-index: 4; pointer-events: none; border-radius: 4px; }
+    body.hide-guides .guide, body.hide-guides #wguide, body.hide-guides #rect { display: none; }
+    #flash { position: absolute; inset: 0; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .35s;
+      box-shadow: inset 0 0 140px 40px rgba(255,40,60,.75); }
+    body.flash-red #flash { opacity: 1; transition: opacity .05s; }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="flash"></div>
+  <div class="guide" id="g0"><span>topo da faixa</span></div>
+  <div class="guide" id="g1"><span>base da faixa</span></div>
+  <div id="wguide"></div>
+  <div id="rect"></div>
+  <div id="help">
+    <b>Teste do renderizador</b><br>
+    <b>1</b> presente normal · <b>2</b> Galáxia (mega) · <b>3</b> Leão (mega)<br>
+    <b>4</b> presente herói · <b>5</b> presente vilão<br>
+    <b>F</b> comida dourada · <b>S</b> escudo liga/desliga<br>
+    <b>B</b> bomba · <b>A</b> maçã extra · <b>E</b> explodir · <b>T</b> tremer<br>
+    <b>L</b> alternar líder · <b>W</b> vitória · <b>X</b> derrota · <b>C</b> contagem<br>
+    <b>G</b> tamanho do tabuleiro · <b>Q</b> qualidade · <b>P</b> pausar · <b>V</b> guias
+  </div>
+  <div id="stats"></div>
+
+  <script type="module">
+    import { Renderer3D } from '/js/render/renderer.js';
+
+    const params = new URLSearchParams(location.search);
+    const quality = ['low', 'medium', 'high'].includes(params.get('quality')) ? params.get('quality') : 'high';
+    let size = Math.max(8, Math.min(24, Number(params.get('grid')) || 16));
+    const DIRS = [{ x: 0, z: -1 }, { x: 1, z: 0 }, { x: 0, z: 1 }, { x: -1, z: 0 }];
+
+    const stage = document.getElementById('stage');
+    const renderer = new Renderer3D(stage, { gridSize: size, quality, onEvent: (e) => {
+      if (e.type === 'flash' && e.kind === 'red') {
+        document.body.classList.add('flash-red');
+        setTimeout(() => document.body.classList.remove('flash-red'), 220);
+      }
+    } });
+    window.renderer = renderer; // for console poking
+
+    // --- Fake game: the snake walks the perimeter of the board -----------------------
+    let perimeter = [], headIdx = 0, len = 6, progress = 0, speed = 6, paused = false;
+    let cells = [], dir = 1, prevDir = 1, phase = 'playing';
+    let apple = null, appleId = 0, bombs = new Map(), bombId = 0, items = 0;
+    let foods = new Map(), foodId = 0, shieldOn = false;
+
+    function buildPerimeter(w, h) {
+      const p = [];
+      for (let x = 0; x < w; x++) p.push({ x, z: 0 });
+      for (let z = 1; z < h; z++) p.push({ x: w - 1, z });
+      for (let x = w - 2; x >= 0; x--) p.push({ x, z: h - 1 });
+      for (let z = h - 2; z >= 1; z--) p.push({ x: 0, z });
+      return p;
+    }
+    function dirBetween(a, b) {
+      return DIRS.findIndex((d) => a.x + d.x === b.x && a.z + d.z === b.z);
+    }
+    function rebuildCells() {
+      const n = perimeter.length;
+      cells = [];
+      for (let i = 0; i < len; i++) cells.push(perimeter[((headIdx - i) % n + n) % n]);
+      const next = perimeter[(headIdx + 1) % n];
+      prevDir = dir;
+      dir = dirBetween(cells[0], next);
+    }
+    function freePerimeterCell() {
+      const n = perimeter.length;
+      for (let tries = 0; tries < 50; tries++) {
+        const k = (headIdx + 4 + Math.floor(Math.random() * (n - 8))) % n;
+        const c = perimeter[k];
+        if (!cells.some((s) => s.x === c.x && s.z === c.z)) return c;
+      }
+      return null;
+    }
+    function spawnApple() {
+      const c = freePerimeterCell();
+      if (!c) return;
+      apple = { id: 'apple' + (appleId++), x: c.x, z: c.z };
+      renderer.addApple(apple.id, c.x, c.z);
+    }
+    function spawnBomb(meta = {}) {
+      const x = 1 + Math.floor(Math.random() * (size - 2));
+      const z = 1 + Math.floor(Math.random() * (size - 2));
+      const id = 'b' + (bombId++);
+      const fuse = 20;
+      bombs.set(id, { x, z, left: fuse });
+      renderer.addBomb(id, x, z, { fuseSec: fuse, ...meta });
+      return { id, x, z };
+    }
+    function spawnFood() {
+      const c = freePerimeterCell();
+      if (!c) return;
+      const id = 'f' + (foodId++);
+      foods.set(id, { x: c.x, z: c.z, left: 20 });
+      renderer.addFood(id, c.x, c.z, { golden: true, meta: { source: 'demo' } });
+    }
+    function resetBoard(newSize) {
+      size = newSize;
+      perimeter = buildPerimeter(size, size);
+      headIdx = 0; len = 6; progress = 0; apple = null; bombs.clear(); foods.clear();
+      renderer.setBoard(size, size);
+      dir = 1; prevDir = 1;
+      rebuildCells();
+      renderer.updateSnake({ cells, dir, prevDir, progress, phase });
+      spawnApple();
+    }
+    resetBoard(size);
+
+    // --- Gift assets (offline data-URI SVGs so the demo needs no network) ------------
+    const svg = (body) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">${body}</svg>`);
+    const roseImg = svg('<circle cx="64" cy="52" r="34" fill="#e11d48"/><circle cx="64" cy="52" r="20" fill="#fb7185"/><rect x="60" y="80" width="8" height="40" fill="#16a34a"/><ellipse cx="80" cy="100" rx="14" ry="7" fill="#22c55e"/>');
+    const galaxyImg = svg('<defs><radialGradient id="g"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="#a78bfa"/><stop offset="1" stop-color="#1e1b4b"/></radialGradient></defs><circle cx="64" cy="64" r="60" fill="url(#g)"/>');
+    const lionImg = svg('<circle cx="64" cy="64" r="56" fill="#f59e0b"/><circle cx="64" cy="66" r="36" fill="#fde68a"/><circle cx="50" cy="58" r="5" fill="#111"/><circle cx="78" cy="58" r="5" fill="#111"/><ellipse cx="64" cy="76" rx="8" ry="5" fill="#111"/>');
+    const avatar = (c) => svg(`<circle cx="64" cy="64" r="64" fill="${c}"/><circle cx="64" cy="50" r="22" fill="#fff"/><ellipse cx="64" cy="106" rx="38" ry="26" fill="#fff"/>`);
+    const leaders = [
+      null,
+      { nickname: 'Maria Fernanda Souza', avatarUrl: avatar('#22d3ee'), coins: 1250 },
+      { nickname: 'Maria Fernanda Souza', avatarUrl: avatar('#22d3ee'), coins: 13400 },
+      { nickname: 'João', avatarUrl: '/img?u=https%3A%2F%2Fexample.invalid%2Fnope.png', coins: 99999 }
+    ];
+    let leaderIdx = 0;
+
+    // --- Keys ---------------------------------------------------------------------------------------
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === '1') { const b = spawnBomb({ giftImageUrl: roseImg, nickname: 'Ana' }); renderer.giftPop({ imageUrl: roseImg, nickname: 'Ana Clara', count: 1, x: b.x, z: b.z, effect: 'normal' }); }
+      if (k === '2') { let first = null; for (let i = 0; i < 5; i++) { const b = spawnBomb({ giftImageUrl: galaxyImg, nickname: 'Pedro' }); first = first || b; } renderer.giftPop({ imageUrl: galaxyImg, nickname: 'Pedro Henrique Lima', count: 3, x: first.x, z: first.z, effect: 'mega' }); }
+      if (k === '3') { let first = null; for (let i = 0; i < 12; i++) { const b = spawnBomb({ giftImageUrl: lionImg, nickname: 'Bia' }); first = first || b; } renderer.giftPop({ imageUrl: lionImg, nickname: 'Bia', count: 1, x: first.x, z: first.z, effect: 'mega' }); }
+      if (k === '4') { const c = freePerimeterCell() || { x: 3, z: 3 }; renderer.giftPop({ imageUrl: galaxyImg, nickname: 'Equipe Herói', count: 2, x: c.x, z: c.z, effect: 'normal', team: 'hero' }); spawnFood(); }
+      if (k === '5') { const c = freePerimeterCell() || { x: 5, z: 5 }; renderer.giftPop({ imageUrl: lionImg, nickname: 'Equipe Vilã', count: 2, x: c.x, z: c.z, effect: 'mega', team: 'villain' }); }
+      if (k === 'f') spawnFood();
+      if (k === 's') { shieldOn = !shieldOn; renderer.setShield(shieldOn); }
+      if (k === 'b') spawnBomb();
+      if (k === 'a') spawnApple();
+      if (k === 'e') renderer.explode(cells[0].x, cells[0].z, { size: 1.2 });
+      if (k === 't') renderer.shake(1.5);
+      if (k === 'l') { leaderIdx = (leaderIdx + 1) % leaders.length; renderer.setLeader(leaders[leaderIdx]); }
+      if (k === 'w') { phase = 'won'; renderer.setPhase('won'); setTimeout(() => { phase = 'playing'; renderer.setPhase('playing'); }, 7000); }
+      if (k === 'x') { phase = 'lost'; renderer.setPhase('lost'); setTimeout(() => { phase = 'playing'; renderer.setPhase('playing'); }, 6000); }
+      if (k === 'c') { phase = 'countdown'; renderer.setPhase('countdown'); setTimeout(() => { phase = 'playing'; renderer.setPhase('playing'); }, 3000); }
+      if (k === 'g') { resetBoard(size === 16 ? 24 : size === 24 ? 12 : 16); }
+      if (k === 'q') { const next = { high: 'medium', medium: 'low', low: 'high' }[quality]; location.search = `?quality=${next}&grid=${size}`; }
+      if (k === 'p') paused = !paused;
+      if (k === 'v') document.body.classList.toggle('hide-guides');
+    });
+
+    // --- Loop ---------------------------------------------------------------------------------------
+    let last = performance.now(), start = last, frames = 0, fpsT = last, fps = 0;
+    const stats = document.getElementById('stats');
+    function loop(now) {
+      requestAnimationFrame(loop);
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      const elapsed = (now - start) / 1000;
+      if (!paused && phase === 'playing') {
+        progress += speed * dt;
+        while (progress >= 1) {
+          progress -= 1;
+          headIdx = (headIdx + 1) % perimeter.length;
+          rebuildCells();
+          if (apple && cells[0].x === apple.x && cells[0].z === apple.z) {
+            renderer.removeItem(apple.id, 'eaten');
+            apple = null;
+            len = Math.min(len + 1, perimeter.length - 2);
+            spawnApple();
+          }
+          for (const [id, f] of foods) {
+            if (cells[0].x === f.x && cells[0].z === f.z) {
+              renderer.removeItem(id, 'eaten');
+              foods.delete(id);
+              len = Math.min(len + 2, perimeter.length - 2);
+            }
+          }
+        }
+        for (const [id, b] of bombs) {
+          b.left -= dt;
+          renderer.setBombFuse(id, b.left);
+          if (b.left <= 0) { renderer.removeItem(id, 'expired'); bombs.delete(id); }
+        }
+        for (const [id, f] of foods) {
+          f.left -= dt;
+          if (f.left <= 0) { renderer.removeItem(id, 'expired'); foods.delete(id); }
+        }
+      }
+      renderer.updateSnake({ cells, dir, prevDir, progress, phase });
+      renderer.frame(dt, elapsed);
+      frames++;
+      if (now - fpsT > 500) { fps = Math.round(frames * 1000 / (now - fpsT)); frames = 0; fpsT = now; }
+      const s = renderer.getStats();
+      const r = renderer.getBoardScreenRect();
+      stats.textContent = `fps ${fps}  draw ${s.drawCalls}  tri ${s.triangles}  part ${s.particles}\n` +
+        `qualidade ${s.quality}  dpr ${s.pixelRatio}  grade ${size}×${size}  cobra ${cells.length}\n` +
+        `tabuleiro x${r.x.toFixed(0)} y${r.y.toFixed(0)} ${r.w.toFixed(0)}×${r.h.toFixed(0)}  ` +
+        `(${(r.y / innerHeight * 100).toFixed(1)}%→${((r.y + r.h) / innerHeight * 100).toFixed(1)}%)`;
+      const rect = document.getElementById('rect');
+      rect.style.left = r.x + 'px'; rect.style.top = r.y + 'px'; rect.style.width = r.w + 'px'; rect.style.height = r.h + 'px';
+    }
+    function placeGuides() {
+      const portrait = innerHeight >= innerWidth;
+      const band = portrait ? [0.20, 0.74] : [0.08, 0.95];
+      document.getElementById('g0').style.top = (band[0] * innerHeight) + 'px';
+      document.getElementById('g1').style.top = (band[1] * innerHeight) + 'px';
+      const wg = document.getElementById('wguide');
+      wg.style.left = (innerWidth * 0.04) + 'px';
+      wg.style.width = (innerWidth * 0.92) + 'px';
+    }
+    window.addEventListener('resize', placeGuides);
+    placeGuides();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

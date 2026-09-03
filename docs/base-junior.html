@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jogo da Cobra 3D Interativo - Live Stream</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: #060a12;
+      color: #ffffff;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    .top-bar {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 50px;
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .stat-val {
+      color: #f8fafc;
+      font-family: monospace;
+      font-size: 1.2rem;
+    }
+
+    .badge-live {
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+      color: #ffffff;
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      animation: pulse 1.5s infinite;
+    }
+
+    .badge-fps {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    .side-panel {
+      position: absolute;
+      left: 15px;
+      top: 15px;
+      width: 260px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .side-panel.collapsed {
+      transform: translateX(-280px);
+    }
+
+    .toggle-panel-btn {
+      position: absolute;
+      right: -42px;
+      top: 10px;
+      width: 36px;
+      height: 36px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    }
+
+    .panel-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 6px;
+    }
+
+    .gift-btn {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border: none;
+      color: #ffffff;
+      padding: 10px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+    }
+
+    .gift-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+    }
+
+    .gift-btn.bomb {
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+    }
+
+    .gift-btn.clear {
+      background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    }
+
+    .control-mode-toggle {
+      display: flex;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      padding: 6px;
+      font-size: 0.8rem;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .toggle-btn.active {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+
+    .key-hint {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .touch-controls {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      width: 140px;
+      height: 140px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 5px;
+      z-index: 12;
+      opacity: 0.85;
+    }
+
+    .dpad-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      border-radius: 10px;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .dpad-btn:active {
+      background: #3b82f6;
+    }
+
+    .game-over-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 2px solid #ef4444;
+      padding: 28px 36px;
+      border-radius: 20px;
+      text-align: center;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      z-index: 20;
+      box-shadow: 0 0 50px rgba(239, 68, 68, 0.4);
+    }
+
+    .game-over-modal h2 {
+      font-size: 1.8rem;
+      color: #ef4444;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .restart-btn {
+      background: #22c55e;
+      color: #ffffff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 30px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .restart-btn:hover {
+      background: #16a34a;
+      transform: scale(1.05);
+    }
+
+    .gift-toast {
+      position: absolute;
+      bottom: 25px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      color: #38bdf8;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 15;
+    }
+
+    .gift-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <div class="top-bar">
+      <div class="badge-live">AO VIVO</div>
+      <div class="badge-fps" id="fps-counter">60 FPS</div>
+      <div class="stat-item">
+        <span>🍎</span>
+        <span id="score-apples" class="stat-val">0</span>
+      </div>
+      <div class="stat-item">
+        <span>💣</span>
+        <span id="score-bombs" class="stat-val">0</span>
+      </div>
+      <div class="stat-item">
+        <span>📏</span>
+        <span id="score-length" class="stat-val">5</span>
+      </div>
+    </div>
+
+    <div id="side-panel" class="side-panel">
+      <button class="toggle-panel-btn" onclick="togglePanel()" title="Esconder Painel">⚙️</button>
+      
+      <div class="panel-title">Modo de Jogo</div>
+      <div class="control-mode-toggle">
+        <button id="btn-ai" class="toggle-btn active" onclick="setMode('ai')">🤖 IA Expert</button>
+        <button id="btn-manual" class="toggle-btn" onclick="setMode('manual')">🎮 Jogador</button>
+      </div>
+
+      <div class="panel-title" style="margin-top: 6px;">Simular Presentes (Chat)</div>
+      <button class="gift-btn" onclick="addAppleManual()">
+        <span>🌹 Rosa (+1 Maçã)</span>
+        <span class="key-hint">Tecla 1</span>
+      </button>
+      <button class="gift-btn bomb" onclick="spawnItem('bomb')">
+        <span>💣 Bomba (Explode)</span>
+        <span class="key-hint">Tecla 2</span>
+      </button>
+      <button class="gift-btn clear" onclick="clearBoard()">
+        <span>✨ Perfume (Limpar)</span>
+        <span class="key-hint">Tecla 3</span>
+      </button>
+    </div>
+
+    <div class="touch-controls">
+      <div></div>
+      <button class="dpad-btn" onclick="handleDpadInput(0)">▲</button>
+      <div></div>
+      <button class="dpad-btn" onclick="handleDpadInput(3)">◄</button>
+      <div></div>
+      <button class="dpad-btn" onclick="handleDpadInput(1)">►</button>
+      <div></div>
+      <button class="dpad-btn" onclick="handleDpadInput(2)">▼</button>
+      <div></div>
+    </div>
+
+    <div id="gift-toast" class="gift-toast">
+      <span id="toast-icon">🎁</span>
+      <span id="toast-msg">Presente recebido!</span>
+    </div>
+
+    <div id="game-over-modal" class="game-over-modal">
+      <h2>A Cobra Colidiu!</h2>
+      <p id="final-stats" style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.5;"></p>
+      <button class="restart-btn" onclick="resetGame()">Reiniciar Jogo</button>
+    </div>
+
+    <div id="canvas-container"></div>
+  </div>
+
+  <script>
+    const GRID_SIZE = 18; 
+    const SCALE = 1.1; 
+    const CELL_SIZE = 1 * SCALE;
+    const MOVE_SPEED = 4.2; 
+
+    let scoreApples = 0;
+    let countBombs = 0;
+    let controlMode = 'ai';
+    let isGameOver = false;
+
+    let frameCount = 0;
+    let lastFpsUpdate = performance.now();
+
+    const DIRS = [
+      { x: 0, z: -1 }, // 0: Cima
+      { x: 1, z: 0 },  // 1: Direita
+      { x: 0, z: 1 },  // 2: Baixo
+      { x: -1, z: 0 }  // 3: Esquerda
+    ];
+    let currentDir = 1;
+    let previousDir = 1;
+    let nextDir = 1;
+
+    let snakeGrid = [
+      { x: 7, z: 9 },
+      { x: 6, z: 9 },
+      { x: 5, z: 9 },
+      { x: 4, z: 9 },
+      { x: 3, z: 9 }
+    ];
+
+    let progressBetweenGrids = 0.0;
+    let worldSnakePoints = [];
+    let items = [];
+    let particles = [];
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'eat') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(1040, now + 0.1);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else if (type === 'bomb') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.linearRampToValueAtTime(45, now + 0.25);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (type === 'clear') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.08);
+        osc.frequency.setValueAtTime(783.99, now + 0.16);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } else if (type === 'gameover') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.linearRampToValueAtTime(70, now + 0.4);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+    }
+
+    let scene, camera, renderer;
+    let snakeHeadGroup = null;
+    let snakeTongueGroup = null;
+    let snakeTubeMesh = null;
+    let snakeTailMesh = null;
+    let rockGroup, wallGroup;
+
+    const snakeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      roughness: 0.18,
+      metalness: 0.2
+    });
+
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0xeab308,
+      metalness: 0.8,
+      roughness: 0.15
+    });
+
+    const rockMaterial = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.7,
+      metalness: 0.15
+    });
+
+    const borderRimMaterial = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.5,
+      metalness: 0.3
+    });
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060a12);
+
+      const aspect = container.clientWidth / container.clientHeight;
+      camera = new THREE.PerspectiveCamera(38, aspect, 0.1, 1000);
+      
+      const centerPos = (GRID_SIZE * CELL_SIZE) / 2;
+      camera.position.set(centerPos, GRID_SIZE * CELL_SIZE * 1.35, GRID_SIZE * CELL_SIZE * 1.12);
+      camera.lookAt(centerPos, 0, centerPos - (0.5 * SCALE));
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xf8fafc, 0.75);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+      dirLight.position.set(centerPos, 36 * SCALE, centerPos + (14 * SCALE));
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 100;
+      const d = 17 * SCALE;
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      scene.add(dirLight);
+
+      const pointLight = new THREE.PointLight(0x38bdf8, 0.8, 45 * SCALE);
+      pointLight.position.set(centerPos, 10 * SCALE, centerPos);
+      scene.add(pointLight);
+
+      createStarfield();
+      createCheckerboard();
+      createBoardBorderRim();
+      createCurvedRockBorder();
+      createInternalRockObstacles();
+      createHeadMesh();
+
+      initWorldPoints();
+      updateContinuousSnakeMesh();
+      ensureOneApple();
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function gridToWorld(gx, gz) {
+      return new THREE.Vector3(
+        (gx + 0.5) * CELL_SIZE,
+        0.32 * SCALE,
+        (gz + 0.5) * CELL_SIZE
+      );
+    }
+
+    let starfieldMesh = null;
+
+    function createStarfield() {
+      const starCount = 1800;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(starCount * 3);
+      const colors = new Float32Array(starCount * 3);
+
+      const centerPos = (GRID_SIZE * CELL_SIZE) / 2;
+
+      const palette = [
+        new THREE.Color(0xffffff),
+        new THREE.Color(0x7dd3fc),
+        new THREE.Color(0x38bdf8),
+        new THREE.Color(0xfef08a)
+      ];
+
+      for (let i = 0; i < starCount; i++) {
+        const u = Math.random();
+        const v = Math.random() * 0.5 + 0.25; 
+        const theta = u * 2.0 * Math.PI;
+        const phi = Math.acos(2.0 * v - 1.0);
+        const r = 60 + Math.random() * 35; 
+
+        const x = centerPos + r * Math.sin(phi) * Math.cos(theta);
+        const y = 18 + Math.random() * 45; 
+        const z = centerPos + r * Math.sin(phi) * Math.sin(theta);
+
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+
+        const col = palette[Math.floor(Math.random() * palette.length)];
+        colors[i * 3] = col.r;
+        colors[i * 3 + 1] = col.g;
+        colors[i * 3 + 2] = col.b;
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: 2.6,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true
+      });
+
+      starfieldMesh = new THREE.Points(geometry, material);
+      scene.add(starfieldMesh);
+    }
+
+    function initWorldPoints() {
+      worldSnakePoints = snakeGrid.map(g => gridToWorld(g.x, g.z));
+    }
+
+    function createCheckerboard() {
+      const boardGroup = new THREE.Group();
+      const geometry = new THREE.BoxGeometry(CELL_SIZE, 0.2 * SCALE, CELL_SIZE);
+
+      const matDark = new THREE.MeshStandardMaterial({ color: 0x478541, roughness: 0.8 });
+      const matLight = new THREE.MeshStandardMaterial({ color: 0x5b9e54, roughness: 0.8 });
+
+      for (let x = 0; x < GRID_SIZE; x++) {
+        for (let z = 0; z < GRID_SIZE; z++) {
+          const isDark = (x + z) % 2 === 0;
+          const tile = new THREE.Mesh(geometry, isDark ? matDark : matLight);
+          tile.position.set((x + 0.5) * CELL_SIZE, -0.1 * SCALE, (z + 0.5) * CELL_SIZE);
+          tile.receiveShadow = true;
+          boardGroup.add(tile);
+        }
+      }
+      scene.add(boardGroup);
+    }
+
+    function createBoardBorderRim() {
+      const borderGroup = new THREE.Group();
+      const thickness = 0.45 * SCALE;
+      const totalSize = GRID_SIZE * CELL_SIZE;
+      const stripMat = borderRimMaterial;
+      
+      const topStrip = new THREE.Mesh(new THREE.BoxGeometry(totalSize + thickness * 2, 0.14 * SCALE, thickness), stripMat);
+      topStrip.position.set(totalSize / 2, -0.05 * SCALE, -thickness / 2);
+      borderGroup.add(topStrip);
+
+      const bottomStrip = new THREE.Mesh(new THREE.BoxGeometry(totalSize + thickness * 2, 0.14 * SCALE, thickness), stripMat);
+      bottomStrip.position.set(totalSize / 2, -0.05 * SCALE, totalSize + thickness / 2);
+      borderGroup.add(bottomStrip);
+
+      const leftStrip = new THREE.Mesh(new THREE.BoxGeometry(thickness, 0.14 * SCALE, totalSize), stripMat);
+      leftStrip.position.set(-thickness / 2, -0.05 * SCALE, totalSize / 2);
+      borderGroup.add(leftStrip);
+
+      const rightStrip = new THREE.Mesh(new THREE.BoxGeometry(thickness, 0.14 * SCALE, totalSize), stripMat);
+      rightStrip.position.set(totalSize + thickness / 2, -0.05 * SCALE, totalSize / 2);
+      borderGroup.add(rightStrip);
+
+      scene.add(borderGroup);
+    }
+
+    function createCurvedRockBorder() {
+      rockGroup = new THREE.Group();
+
+      function addSmoothRockCluster(x, z) {
+        const cluster = new THREE.Group();
+        const rockGeo = new THREE.IcosahedronGeometry(0.55 * SCALE, 2);
+
+        for (let i = 0; i < 2; i++) {
+          const rock = new THREE.Mesh(rockGeo, rockMaterial);
+          rock.position.set(
+            (Math.random() - 0.5) * 0.02 * SCALE,
+            (0.32 + Math.random() * 0.1) * SCALE,
+            (Math.random() - 0.5) * 0.02 * SCALE
+          );
+          rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+          rock.scale.set(0.95 + Math.random() * 0.25, 1.0 + Math.random() * 0.3, 0.95 + Math.random() * 0.25);
+          rock.castShadow = true;
+          rock.receiveShadow = true;
+          cluster.add(rock);
+        }
+
+        cluster.position.set((x + 0.5) * CELL_SIZE, 0, (z + 0.5) * CELL_SIZE);
+        rockGroup.add(cluster);
+      }
+
+      for (let x = -1; x <= GRID_SIZE; x++) {
+        for (let z = -1; z <= GRID_SIZE; z++) {
+          if (x === -1 || x === GRID_SIZE || z === -1 || z === GRID_SIZE) {
+            addSmoothRockCluster(x, z);
+          }
+        }
+      }
+
+      scene.add(rockGroup);
+    }
+
+    function createInternalRockObstacles() {
+      wallGroup = new THREE.Group();
+
+      const internalWalls = [
+        {x: 4, z: 4}, {x: 4, z: 5}, {x: 4, z: 6},
+        {x: 13, z: 11}, {x: 13, z: 12}, {x: 13, z: 13},
+        {x: 8, z: 14}, {x: 9, z: 14}, {x: 10, z: 14},
+        {x: 12, z: 4}, {x: 13, z: 4}, {x: 14, z: 4}
+      ];
+
+      const rockGeo = new THREE.DodecahedronGeometry(0.52 * SCALE, 1);
+
+      internalWalls.forEach(w => {
+        const cluster = new THREE.Group();
+
+        for (let i = 0; i < 3; i++) {
+          const rock = new THREE.Mesh(rockGeo, rockMaterial);
+          rock.position.set(
+            (Math.random() - 0.5) * 0.02 * SCALE,
+            (0.3 + i * 0.12) * SCALE,
+            (Math.random() - 0.5) * 0.02 * SCALE
+          );
+          rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+          rock.scale.set(0.95 + Math.random() * 0.2, 0.95 + Math.random() * 0.2, 0.95 + Math.random() * 0.2);
+          rock.castShadow = true;
+          rock.receiveShadow = true;
+          cluster.add(rock);
+        }
+
+        cluster.position.set((w.x + 0.5) * CELL_SIZE, 0, (w.z + 0.5) * CELL_SIZE);
+        wallGroup.add(cluster);
+      });
+
+      window.internalWallCoords = internalWalls;
+      scene.add(wallGroup);
+    }
+
+    function createHeadMesh() {
+      snakeHeadGroup = new THREE.Group();
+
+      const headGeo = new THREE.SphereGeometry(0.36 * SCALE, 32, 24);
+      headGeo.scale(1.0, 0.85, 1.15);
+      const headMesh = new THREE.Mesh(headGeo, snakeMaterial);
+      headMesh.position.y = 0.0;
+      headMesh.castShadow = true;
+      snakeHeadGroup.add(headMesh);
+
+      const snoutGeo = new THREE.SphereGeometry(0.26 * SCALE, 16, 16);
+      snoutGeo.scale(0.9, 0.6, 0.8);
+      const snout = new THREE.Mesh(snoutGeo, snakeMaterial);
+      snout.position.set(0, -0.02 * SCALE, -0.3 * SCALE);
+      snakeHeadGroup.add(snout);
+
+      snakeTongueGroup = new THREE.Group();
+      const tongueMat = new THREE.MeshStandardMaterial({ color: 0xd90429, roughness: 0.3, metalness: 0.1 });
+      
+      const stalkGeo = new THREE.BoxGeometry(0.04 * SCALE, 0.02 * SCALE, 0.32 * SCALE);
+      const stalk = new THREE.Mesh(stalkGeo, tongueMat);
+      stalk.position.set(0, 0, -0.16 * SCALE);
+      snakeTongueGroup.add(stalk);
+      
+      const forkGeo = new THREE.BoxGeometry(0.03 * SCALE, 0.02 * SCALE, 0.14 * SCALE);
+      const leftFork = new THREE.Mesh(forkGeo, tongueMat);
+      leftFork.position.set(-0.035 * SCALE, 0, -0.36 * SCALE);
+      leftFork.rotation.y = 0.38;
+      snakeTongueGroup.add(leftFork);
+      
+      const rightFork = new THREE.Mesh(forkGeo, tongueMat);
+      rightFork.position.set(0.035 * SCALE, 0, -0.36 * SCALE);
+      rightFork.rotation.y = -0.38;
+      snakeTongueGroup.add(rightFork);
+
+      snakeTongueGroup.position.set(0, -0.05 * SCALE, -0.42 * SCALE);
+      snakeTongueGroup.scale.set(0, 0, 0);
+      snakeHeadGroup.add(snakeTongueGroup);
+
+      const eyeGlobeGeo = new THREE.SphereGeometry(0.13 * SCALE, 20, 20);
+      const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
+      const pupilGeo = new THREE.SphereGeometry(0.07 * SCALE, 16, 16);
+      const pupilMat = new THREE.MeshBasicMaterial({ color: 0x09090b });
+      const shineGeo = new THREE.SphereGeometry(0.025 * SCALE, 8, 8);
+      const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+      [-0.23, 0.23].forEach(xOffset => {
+        const eyeGroup = new THREE.Group();
+
+        const eyeWhite = new THREE.Mesh(eyeGlobeGeo, eyeWhiteMat);
+        eyeGroup.add(eyeWhite);
+
+        const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+        pupil.position.set(0, 0, -0.08 * SCALE);
+        eyeGroup.add(pupil);
+
+        const shine = new THREE.Mesh(shineGeo, shineMat);
+        shine.position.set(0.03 * SCALE, 0.03 * SCALE, -0.13 * SCALE);
+        eyeGroup.add(shine);
+
+        eyeGroup.position.set(xOffset * SCALE, 0.15 * SCALE, -0.2 * SCALE);
+        snakeHeadGroup.add(eyeGroup);
+      });
+
+      const crownGroup = new THREE.Group();
+      const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * SCALE, 0.18 * SCALE, 0.1 * SCALE, 8), crownMat);
+      crownGroup.add(crownBase);
+      for(let i=0; i<5; i++){
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05 * SCALE, 0.15 * SCALE, 4), crownMat);
+        const angle = (i / 5) * Math.PI * 2;
+        spike.position.set(Math.cos(angle)*0.16*SCALE, 0.1*SCALE, Math.sin(angle)*0.16*SCALE);
+        crownGroup.add(spike);
+      }
+      crownGroup.position.set(0, 0.38 * SCALE, -0.05 * SCALE);
+      snakeHeadGroup.add(crownGroup);
+
+      scene.add(snakeHeadGroup);
+    }
+
+    function updateContinuousSnakeMesh() {
+      if (worldSnakePoints.length < 2) return;
+
+      const headPos = worldSnakePoints[0];
+      snakeHeadGroup.position.copy(headPos);
+
+      const prevAngle = Math.atan2(DIRS[previousDir].x, DIRS[previousDir].z) + Math.PI;
+      const targetAngle = Math.atan2(DIRS[currentDir].x, DIRS[currentDir].z) + Math.PI;
+
+      let diff = targetAngle - prevAngle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+
+      const t = Math.max(0, Math.min(1, progressBetweenGrids));
+      const smoothT = t * t * (3 - 2 * t);
+      const currentHeadAngle = prevAngle + diff * smoothT;
+
+      snakeHeadGroup.rotation.y = currentHeadAngle;
+
+      const bodyPoints = worldSnakePoints.slice(0);
+      const curve = new THREE.CatmullRomCurve3(bodyPoints, false, 'catmullrom', 0.25);
+
+      const tubularSegments = Math.max(24, bodyPoints.length * 14);
+      const radius = 0.22 * SCALE;
+      const radialSegments = 16;
+
+      const newGeometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, false);
+
+      if (snakeTubeMesh) {
+        snakeTubeMesh.geometry.dispose();
+        snakeTubeMesh.geometry = newGeometry;
+      } else {
+        snakeTubeMesh = new THREE.Mesh(newGeometry, snakeMaterial);
+        snakeTubeMesh.castShadow = true;
+        snakeTubeMesh.receiveShadow = true;
+        scene.add(snakeTubeMesh);
+      }
+
+      const tailPos = bodyPoints[bodyPoints.length - 1];
+      if (!snakeTailMesh) {
+        const tailGeo = new THREE.SphereGeometry(radius * 0.9, 16, 16);
+        snakeTailMesh = new THREE.Mesh(tailGeo, snakeMaterial);
+        snakeTailMesh.castShadow = true;
+        scene.add(snakeTailMesh);
+      }
+      snakeTailMesh.position.copy(tailPos);
+    }
+
+    function spawnItem(type) {
+      if (isGameOver) return;
+
+      let emptyGrid = [];
+      for (let x = 0; x < GRID_SIZE; x++) {
+        for (let z = 0; z < GRID_SIZE; z++) {
+          const isSnake = snakeGrid.some(s => s.x === x && s.z === z);
+          const isWall = window.internalWallCoords.some(w => w.x === x && w.z === z);
+          const isItem = items.some(it => it.x === x && it.z === z);
+
+          if (!isSnake && !isWall && !isItem) {
+            emptyGrid.push({ x, z });
+          }
+        }
+      }
+
+      if (emptyGrid.length === 0) return;
+      const target = emptyGrid[Math.floor(Math.random() * emptyGrid.length)];
+
+      const itemGroup = new THREE.Group();
+
+      if (type === 'apple') {
+        const appleGeo = new THREE.SphereGeometry(0.32 * SCALE, 20, 16);
+        const appleMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.25 });
+        const appleMesh = new THREE.Mesh(appleGeo, appleMat);
+        appleMesh.position.y = 0.32 * SCALE;
+        appleMesh.castShadow = true;
+        itemGroup.add(appleMesh);
+
+        const stemGeo = new THREE.CylinderGeometry(0.02 * SCALE, 0.03 * SCALE, 0.18 * SCALE);
+        const stemMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
+        const stem = new THREE.Mesh(stemGeo, stemMat);
+        stem.position.set(0, 0.52 * SCALE, 0);
+        itemGroup.add(stem);
+
+        const leafGeo = new THREE.SphereGeometry(0.1 * SCALE, 8, 8);
+        leafGeo.scale(1.5, 0.2, 0.8);
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x22c55e });
+        const leaf = new THREE.Mesh(leafGeo, leafMat);
+        leaf.position.set(0.08 * SCALE, 0.54 * SCALE, 0);
+        itemGroup.add(leaf);
+
+        showToast("🌹 Rosa (+1 Maçã) recebida!");
+      } else if (type === 'bomb') {
+        const bombGeo = new THREE.SphereGeometry(0.34 * SCALE, 20, 16);
+        const bombMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.8 });
+        const bombMesh = new THREE.Mesh(bombGeo, bombMat);
+        bombMesh.position.y = 0.34 * SCALE;
+        bombMesh.castShadow = true;
+        itemGroup.add(bombMesh);
+
+        const fuseGeo = new THREE.CylinderGeometry(0.02 * SCALE, 0.02 * SCALE, 0.2 * SCALE);
+        const fuseMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b });
+        const fuse = new THREE.Mesh(fuseGeo, fuseMat);
+        fuse.position.set(0, 0.5 * SCALE, 0);
+        itemGroup.add(fuse);
+
+        const flameGeo = new THREE.SphereGeometry(0.06 * SCALE, 10, 10);
+        const flameMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+        const flame = new THREE.Mesh(flameGeo, flameMat);
+        flame.position.set(0, 0.62 * SCALE, 0);
+        itemGroup.add(flame);
+
+        showToast("💣 Bomba gerada pelo Chat!");
+      }
+
+      itemGroup.position.set((target.x + 0.5) * CELL_SIZE, 0, (target.z + 0.5) * CELL_SIZE);
+      scene.add(itemGroup);
+
+      items.push({
+        id: Math.random().toString(36).substr(2, 9),
+        type,
+        x: target.x,
+        z: target.z,
+        mesh: itemGroup
+      });
+    }
+
+    const BOMB_INTERVAL = 8;
+
+    function manageAutoBombs() {
+      if (isGameOver) return;
+      // A cada 8 de tamanho da cobra (8, 16, 24...), ajusta o limite proporcional de bombas
+      const targetBombs = Math.floor(snakeGrid.length / BOMB_INTERVAL);
+      const currentBombs = items.filter(it => it.type === 'bomb').length;
+
+      if (currentBombs < targetBombs) {
+        const bombsToSpawn = targetBombs - currentBombs;
+        for (let i = 0; i < bombsToSpawn; i++) {
+          spawnItem('bomb');
+        }
+      }
+    }
+
+    function addAppleManual() {
+      spawnItem('apple');
+    }
+
+    function ensureOneApple() {
+      if (!items.some(it => it.type === 'apple')) {
+        spawnItem('apple');
+      }
+    }
+
+    function clearBoard() {
+      if (isGameOver) return;
+      items.forEach(it => scene.remove(it.mesh));
+      items = [];
+      playSound('clear');
+      showToast("✨ Perfume usado! Tabuleiro limpo.");
+      ensureOneApple();
+      manageAutoBombs();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('gift-toast');
+      const toastMsg = document.getElementById('toast-msg');
+      toastMsg.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2200);
+    }
+
+    function createExplosion(x, z, color = 0xef4444) {
+      const particleCount = 20;
+      const geo = new THREE.SphereGeometry(0.08 * SCALE, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({ color });
+
+      for (let i = 0; i < particleCount; i++) {
+        const p = new THREE.Mesh(geo, mat);
+        p.position.set((x + 0.5) * CELL_SIZE, 0.4 * SCALE, (z + 0.5) * CELL_SIZE);
+        const vx = (Math.random() - 0.5) * 0.15;
+        const vy = (Math.random() * 0.15) + 0.05;
+        const vz = (Math.random() - 0.5) * 0.15;
+        scene.add(p);
+        particles.push({ mesh: p, vx, vy, vz, life: 1.0 });
+      }
+    }
+
+    function updateParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.mesh.position.x += p.vx;
+        p.mesh.position.y += p.vy;
+        p.mesh.position.z += p.vz;
+        p.vy -= 0.008;
+        p.life -= 0.04;
+        p.mesh.scale.setScalar(Math.max(0.01, p.life));
+
+        if (p.life <= 0) {
+          scene.remove(p.mesh);
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    function isGridBlocked(x, z, customSnake = snakeGrid, ignoreTail = true) {
+      if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) return true;
+      if (window.internalWallCoords && window.internalWallCoords.some(w => w.x === x && w.z === z)) return true;
+
+      const len = ignoreTail ? customSnake.length - 1 : customSnake.length;
+      for (let i = 0; i < len; i++) {
+        if (customSnake[i].x === x && customSnake[i].z === z) return true;
+      }
+      return false;
+    }
+
+    function findAStarPath(start, goal, customSnake = snakeGrid, allowGoalBlocked = true) {
+      if (start.x === goal.x && start.z === goal.z) return [];
+
+      const openSet = [];
+      const cameFrom = new Map();
+      const gScore = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(Infinity));
+      const fScore = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(Infinity));
+
+      const heuristic = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
+
+      gScore[start.x][start.z] = 0;
+      fScore[start.x][start.z] = heuristic(start, goal);
+      openSet.push({ x: start.x, z: start.z, f: fScore[start.x][start.z] });
+
+      while (openSet.length > 0) {
+        openSet.sort((a, b) => a.f - b.f);
+        const curr = openSet.shift();
+
+        if (curr.x === goal.x && curr.z === goal.z) {
+          const path = [];
+          let currentKey = `${goal.x},${goal.z}`;
+          while (cameFrom.has(currentKey)) {
+            const prevData = cameFrom.get(currentKey);
+            path.unshift(prevData.dir);
+            currentKey = prevData.fromKey;
+          }
+          return path;
+        }
+
+        for (let d = 0; d < 4; d++) {
+          const nx = curr.x + DIRS[d].x;
+          const nz = curr.z + DIRS[d].z;
+
+          if (nx >= 0 && nx < GRID_SIZE && nz >= 0 && nz < GRID_SIZE) {
+            const isGoal = (nx === goal.x && nz === goal.z);
+            const blocked = isGridBlocked(nx, nz, customSnake, true);
+
+            if ((isGoal && allowGoalBlocked) || !blocked) {
+              const tentativeG = gScore[curr.x][curr.z] + 1;
+              if (tentativeG < gScore[nx][nz]) {
+                cameFrom.set(`${nx},${nz}`, { fromKey: `${curr.x},${curr.z}`, dir: d });
+                gScore[nx][nz] = tentativeG;
+                fScore[nx][nz] = tentativeG + heuristic({ x: nx, z: nz }, goal);
+
+                if (!openSet.some(item => item.x === nx && item.z === nz)) {
+                  openSet.push({ x: nx, z: nz, f: fScore[nx][nz] });
+                }
+              }
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    function isMoveTailSafe(dir) {
+      const head = snakeGrid[0];
+      const nx = head.x + DIRS[dir].x;
+      const nz = head.z + DIRS[dir].z;
+
+      if (isGridBlocked(nx, nz, snakeGrid, true)) return false;
+
+      const simSnake = snakeGrid.map(s => ({ ...s }));
+      simSnake.unshift({ x: nx, z: nz });
+      simSnake.pop();
+
+      const simHead = simSnake[0];
+      const simTail = simSnake[simSnake.length - 1];
+
+      const pathToTail = findAStarPath(simHead, simTail, simSnake, true);
+      return pathToTail !== null;
+    }
+
+    function countAccessibleFloodFill(startPos, customSnake = snakeGrid) {
+      if (isGridBlocked(startPos.x, startPos.z, customSnake, true)) return 0;
+      
+      const visited = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false));
+      let count = 0;
+      const q = [startPos];
+      visited[startPos.x][startPos.z] = true;
+
+      while (q.length > 0) {
+        const curr = q.shift();
+        count++;
+
+        for (let d = 0; d < 4; d++) {
+          const nx = curr.x + DIRS[d].x;
+          const nz = curr.z + DIRS[d].z;
+
+          if (nx >= 0 && nx < GRID_SIZE && nz >= 0 && nz < GRID_SIZE) {
+            if (!visited[nx][nz] && !isGridBlocked(nx, nz, customSnake, true)) {
+              visited[nx][nz] = true;
+              q.push({ x: nx, z: nz });
+            }
+          }
+        }
+      }
+      return count;
+    }
+
+    function getSafeFallbackMove() {
+      const head = snakeGrid[0];
+      const tail = snakeGrid[snakeGrid.length - 1];
+      
+      let bestDir = -1;
+      let maxSpace = -1;
+
+      // Tenta seguir a própria cauda para manter o ciclo vivo
+      const pathToTail = findAStarPath(head, tail, snakeGrid, true);
+      if (pathToTail && pathToTail.length > 0) {
+        const candidateDir = pathToTail[0];
+        const cX = head.x + DIRS[candidateDir].x;
+        const cZ = head.z + DIRS[candidateDir].z;
+        if (!isGridBlocked(cX, cZ, snakeGrid, true)) {
+          return candidateDir;
+        }
+      }
+
+      // Procura a direçao com maior área livre disponível
+      for (let d = 0; d < 4; d++) {
+        if (snakeGrid.length > 1 && (d + 2) % 4 === currentDir) continue;
+
+        const nx = head.x + DIRS[d].x;
+        const nz = head.z + DIRS[d].z;
+
+        if (!isGridBlocked(nx, nz, snakeGrid, true)) {
+          const space = countAccessibleFloodFill({ x: nx, z: nz }, snakeGrid);
+          if (space > maxSpace) {
+            maxSpace = space;
+            bestDir = d;
+          }
+        }
+      }
+
+      if (bestDir !== -1) return bestDir;
+
+      // Fallback de emergência em qualquer espaço livre
+      for (let d = 0; d < 4; d++) {
+        const nx = head.x + DIRS[d].x;
+        const nz = head.z + DIRS[d].z;
+        if (!isGridBlocked(nx, nz, snakeGrid, false)) {
+          return d;
+        }
+      }
+
+      return currentDir;
+    }
+
+    function getNextAiDirection() {
+      const head = snakeGrid[0];
+      
+      // Coleta todos os itens (Maçãs e Bombas) como alvos da IA
+      const targets = items.map(it => {
+        const dist = Math.abs(head.x - it.x) + Math.abs(head.z - it.z);
+        // Maçãs têm prioridade principal (1.0), Bombas (1.1 a 1.3 dependendo do tamanho da cobra)
+        let priorityWeight = it.type === 'apple' ? 1.0 : (snakeGrid.length >= 8 ? 1.1 : 1.4);
+        return { ...it, dist, score: dist * priorityWeight };
+      });
+
+      if (targets.length === 0) {
+        return getSafeFallbackMove();
+      }
+
+      // Ordena itens por proximidade e prioridade
+      targets.sort((a, b) => a.score - b.score);
+
+      // Tenta rota A* segura para os alvos
+      for (const target of targets) {
+        const path = findAStarPath(head, { x: target.x, z: target.z }, snakeGrid, true);
+        if (path && path.length > 0) {
+          const firstDir = path[0];
+          const nextX = head.x + DIRS[firstDir].x;
+          const nextZ = head.z + DIRS[firstDir].z;
+
+          // Se a jogada for segura em termos de acesso à cauda ou área de flood fill
+          if (isMoveTailSafe(firstDir) || countAccessibleFloodFill({ x: nextX, z: nextZ }) >= snakeGrid.length) {
+            return firstDir;
+          }
+        }
+      }
+
+      // Se caminho A* direto não for 100% seguro, seleciona melhor direção aproximando-se do alvo
+      let bestDir = -1;
+      let maxScore = -Infinity;
+      const primaryTarget = targets[0];
+
+      for (let d = 0; d < 4; d++) {
+        if (snakeGrid.length > 1 && (d + 2) % 4 === currentDir) continue;
+
+        const nx = head.x + DIRS[d].x;
+        const nz = head.z + DIRS[d].z;
+
+        if (isGridBlocked(nx, nz, snakeGrid, true)) continue;
+
+        const openSpace = countAccessibleFloodFill({ x: nx, z: nz }, snakeGrid);
+        const distToTarget = Math.abs(nx - primaryTarget.x) + Math.abs(nz - primaryTarget.z);
+
+        let score = (1000 - distToTarget * 10) + openSpace * 5;
+        if (isMoveTailSafe(d)) score += 2000;
+
+        if (score > maxScore) {
+          maxScore = score;
+          bestDir = d;
+        }
+      }
+
+      if (bestDir !== -1) return bestDir;
+
+      return getSafeFallbackMove();
+    }
+
+    function advanceSnakeGridStep() {
+      if (isGameOver) return;
+
+      if (controlMode === 'ai') {
+        nextDir = getNextAiDirection();
+
+        // Verificação extra de segurança para evitar qualquer colisão
+        const testHead = snakeGrid[0];
+        const testNx = testHead.x + DIRS[nextDir].x;
+        const testNz = testHead.z + DIRS[nextDir].z;
+        
+        if (isGridBlocked(testNx, testNz, snakeGrid, false)) {
+          nextDir = getSafeFallbackMove();
+        }
+      }
+
+      previousDir = currentDir;
+      currentDir = nextDir;
+      const head = snakeGrid[0];
+      const newHead = {
+        x: head.x + DIRS[currentDir].x,
+        z: head.z + DIRS[currentDir].z
+      };
+
+      // No modo IA, a cobra nunca colide e o jogo funciona de forma infinita
+      if (controlMode === 'ai') {
+        if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.z < 0 || newHead.z >= GRID_SIZE ||
+            window.internalWallCoords.some(w => w.x === newHead.x && w.z === newHead.z) ||
+            snakeGrid.some(seg => seg.x === newHead.x && seg.z === newHead.z)) {
+          const emergencyDir = getSafeFallbackMove();
+          currentDir = emergencyDir;
+          nextDir = emergencyDir;
+          newHead.x = head.x + DIRS[emergencyDir].x;
+          newHead.z = head.z + DIRS[emergencyDir].z;
+        }
+      } else {
+        // Modo Jogador Manual
+        if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.z < 0 || newHead.z >= GRID_SIZE) {
+          triggerGameOver("A cobra bateu na muralha externa!");
+          return;
+        }
+
+        if (window.internalWallCoords.some(w => w.x === newHead.x && w.z === newHead.z)) {
+          triggerGameOver("A cobra bateu nos obstáculos de pedra!");
+          return;
+        }
+
+        if (snakeGrid.some(seg => seg.x === newHead.x && seg.z === newHead.z)) {
+          triggerGameOver("A cobra colidiu com seu próprio corpo!");
+          return;
+        }
+      }
+
+      snakeGrid.unshift(newHead);
+
+      let eatenIndex = items.findIndex(it => it.x === newHead.x && it.z === newHead.z);
+
+      if (eatenIndex !== -1) {
+        const item = items[eatenIndex];
+        scene.remove(item.mesh);
+        items.splice(eatenIndex, 1);
+
+        if (item.type === 'apple') {
+          scoreApples++;
+          playSound('eat');
+          createExplosion(newHead.x, newHead.z, 0xef4444);
+          updateUI();
+          ensureOneApple();
+          manageAutoBombs();
+        } else if (item.type === 'bomb') {
+          countBombs++;
+          playSound('bomb');
+          createExplosion(newHead.x, newHead.z, 0xf59e0b);
+
+          // A cobra encolhe ao comer a bomba (perde 2 segmentos mantendo tamanho mínimo)
+          const segmentsToRemove = snakeGrid.length > 5 ? 2 : 1;
+          for (let i = 0; i < segmentsToRemove; i++) {
+            if (snakeGrid.length > 3) {
+              snakeGrid.pop();
+            }
+          }
+          showToast("💣 A cobra comeu uma bomba e encolheu!");
+          updateUI();
+          ensureOneApple();
+          manageAutoBombs();
+        }
+      } else {
+        snakeGrid.pop();
+      }
+
+      updateUI();
+    }
+
+    function triggerGameOver(reason) {
+      isGameOver = true;
+      playSound('gameover');
+      document.getElementById('final-stats').innerHTML = `${reason}<br><br><b>Maçãs Coletadas:</b> ${scoreApples}<br><b>Tamanho Final:</b> ${snakeGrid.length}`;
+      document.getElementById('game-over-modal').style.display = 'flex';
+    }
+
+    function resetGame() {
+      isGameOver = false;
+      scoreApples = 0;
+      countBombs = 0;
+      previousDir = 1;
+      currentDir = 1;
+      nextDir = 1;
+      progressBetweenGrids = 0;
+
+      snakeGrid = [
+        { x: 7, z: 9 },
+        { x: 6, z: 9 },
+        { x: 5, z: 9 },
+        { x: 4, z: 9 },
+        { x: 3, z: 9 }
+      ];
+
+      items.forEach(it => scene.remove(it.mesh));
+      items = [];
+
+      document.getElementById('game-over-modal').style.display = 'none';
+      initWorldPoints();
+      updateContinuousSnakeMesh();
+      ensureOneApple();
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById('score-apples').innerText = scoreApples;
+      document.getElementById('score-bombs').innerText = countBombs;
+      document.getElementById('score-length').innerText = snakeGrid.length;
+    }
+
+    function togglePanel() {
+      document.getElementById('side-panel').classList.toggle('collapsed');
+    }
+
+    function setMode(mode) {
+      controlMode = mode;
+      document.getElementById('btn-ai').classList.toggle('active', mode === 'ai');
+      document.getElementById('btn-manual').classList.toggle('active', mode === 'manual');
+    }
+
+    function handleDpadInput(dirIndex) {
+      if (controlMode !== 'manual') setMode('manual');
+      if ((dirIndex + 2) % 4 !== currentDir) {
+        nextDir = dirIndex;
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '1') addAppleManual();
+      if (e.key === '2') spawnItem('bomb');
+      if (e.key === '3') clearBoard();
+
+      if (['ArrowUp', 'KeyW'].includes(e.code)) handleDpadInput(0);
+      if (['ArrowRight', 'KeyD'].includes(e.code)) handleDpadInput(1);
+      if (['ArrowDown', 'KeyS'].includes(e.code)) handleDpadInput(2);
+      if (['ArrowLeft', 'KeyA'].includes(e.code)) handleDpadInput(3);
+    });
+
+    let touchStartX = 0, touchStartY = 0;
+    window.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    });
+
+    window.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+
+      if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          handleDpadInput(dx > 0 ? 1 : 3);
+        } else {
+          handleDpadInput(dy > 0 ? 2 : 0);
+        }
+      }
+    });
+
+    function onWindowResize() {
+      const container = document.getElementById('canvas-container');
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    let lastTime = performance.now();
+
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min((currentTime - lastTime) / 1000, 0.1);
+      lastTime = currentTime;
+
+      frameCount++;
+      if (currentTime - lastFpsUpdate >= 500) {
+        const fps = Math.round((frameCount * 1000) / (currentTime - lastFpsUpdate));
+        document.getElementById('fps-counter').innerText = `${fps} FPS`;
+        frameCount = 0;
+        lastFpsUpdate = currentTime;
+      }
+
+      if (snakeTongueGroup) {
+        const apples = items.filter(it => it.type === 'apple');
+        let isNearApple = false;
+        if (apples.length > 0 && snakeGrid.length > 0) {
+          const head = snakeGrid[0];
+          isNearApple = apples.some(apple => {
+            const dist = Math.abs(head.x - apple.x) + Math.abs(head.z - apple.z);
+            return dist <= 4;
+          });
+        }
+
+        if (isNearApple) {
+          const flick = Math.sin(currentTime * 0.015);
+          const extension = Math.max(0, flick);
+          snakeTongueGroup.scale.set(1, 1, 0.2 + extension * 1.3);
+        } else {
+          snakeTongueGroup.scale.lerp(new THREE.Vector3(0, 0, 0), 0.2);
+        }
+      }
+
+      if (!isGameOver) {
+        progressBetweenGrids += MOVE_SPEED * delta;
+
+        if (progressBetweenGrids >= 1.0) {
+          progressBetweenGrids -= 1.0;
+          advanceSnakeGridStep();
+        }
+
+        worldSnakePoints = [];
+        for (let i = 0; i < snakeGrid.length; i++) {
+          const curr = gridToWorld(snakeGrid[i].x, snakeGrid[i].z);
+          if (i === 0) {
+            const forwardX = DIRS[currentDir].x * CELL_SIZE * progressBetweenGrids;
+            const forwardZ = DIRS[currentDir].z * CELL_SIZE * progressBetweenGrids;
+            curr.x += forwardX;
+            curr.z += forwardZ;
+          } else {
+            const prev = gridToWorld(snakeGrid[i - 1].x, snakeGrid[i - 1].z);
+            curr.lerp(prev, progressBetweenGrids);
+          }
+          worldSnakePoints.push(curr);
+        }
+
+        updateContinuousSnakeMesh();
+      }
+
+      items.forEach(it => {
+        it.mesh.rotation.y += 1.5 * delta;
+        it.mesh.position.y = Math.sin(currentTime * 0.004 + it.x) * 0.08 * SCALE;
+      });
+
+      updateParticles();
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      initThree();
+      lastTime = performance.now();
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

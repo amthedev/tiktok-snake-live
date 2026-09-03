@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Painel · Cobra 3D ao vivo</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2322d3ee'/%3E%3Ctext x='32' y='42' font-size='32' text-anchor='middle'%3E🐍%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/css/painel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">🐍</span>
+      <div>
+        <h1>Cobra 3D · Painel de controle</h1>
+        <p class="muted">Controle a live, simule eventos e edite as regras dos presentes.</p>
+      </div>
+    </div>
+    <div class="pills">
+      <span id="pill-ws" class="pill pill-off" title="Conexão com o servidor">⟳ servidor</span>
+      <span id="pill-tiktok" class="pill pill-off" title="Conexão com o TikTok">TikTok: desconectado</span>
+      <span id="pill-viewers" class="pill pill-neutral" title="Espectadores">👁 0</span>
+      <span id="pill-overlay" class="pill pill-off" title="Overlay (OBS) enviando dados">overlay: sem sinal</span>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn btn-primary" id="link-overlay" href="/?obs=1" target="_blank" rel="noopener">Abrir overlay (OBS)</a>
+      <button class="btn" id="btn-copy-url" type="button" title="Copiar a URL para colar no OBS">Copiar URL</button>
+      <a class="btn btn-ghost" href="/" target="_blank" rel="noopener" title="Overlay com painel de desenvolvedor">Overlay (dev)</a>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- TikTok -->
+    <section class="card" id="card-tiktok">
+      <h2>📡 Conexão com o TikTok</h2>
+      <form id="form-tiktok" class="row" autocomplete="off">
+        <label class="field grow">
+          <span>Usuário da live (sem @)</span>
+          <input id="in-username" type="text" placeholder="ex.: seu.usuario" maxlength="40" spellcheck="false" />
+        </label>
+        <button class="btn btn-primary" id="btn-connect" type="submit">Conectar</button>
+        <button class="btn btn-danger" id="btn-disconnect" type="button">Desconectar</button>
+      </form>
+      <p id="tiktok-message" class="status-line muted">Desconectado.</p>
+      <p class="hint">Sem chave <code>SIGN_API_KEY</code> o serviço de assinatura tem limite baixo de conexões — evite conectar/desconectar repetidamente.</p>
+    </section>
+
+    <!-- Snapshot -->
+    <section class="card" id="card-snapshot">
+      <h2>🎮 Jogo ao vivo</h2>
+      <div class="kv">
+        <div><span class="k">Rodada</span><span class="v" id="snap-round">–</span></div>
+        <div><span class="k">Fase</span><span class="v" id="snap-phase">–</span></div>
+        <div><span class="k">Risco</span><span class="v" id="snap-danger">–</span></div>
+        <div><span class="k">Tamanho</span><span class="v" id="snap-length">–</span></div>
+        <div><span class="k">Maçãs</span><span class="v" id="snap-apples">–</span></div>
+        <div><span class="k">Bombas</span><span class="v" id="snap-bombs">–</span></div>
+      </div>
+      <div class="progress" title="Preenchimento do tabuleiro"><div class="progress-bar" id="snap-progress"></div></div>
+      <p class="hint" id="snap-updated">Aguardando dados do overlay… abra o overlay em uma aba ou no OBS.</p>
+    </section>
+
+    <!-- Commands -->
+    <section class="card" id="card-commands">
+      <h2>🕹️ Comandos do jogo</h2>
+      <div class="btn-grid">
+        <button class="btn" data-cmd="new_round">🔄 Nova rodada</button>
+        <button class="btn" data-cmd="pause">⏸ Pausar</button>
+        <button class="btn" data-cmd="resume">▶️ Continuar</button>
+        <button class="btn" data-cmd="spawn_apple">🍎 Nova maçã</button>
+        <button class="btn" data-cmd="spawn_bomb">💣 Bomba</button>
+        <button class="btn" data-cmd="clear_bombs">🧹 Limpar bombas</button>
+        <button class="btn btn-ghost" data-cmd="reload" title="Recarrega a página do overlay">♻️ Recarregar overlay</button>
+      </div>
+    </section>
+
+    <!-- Gift simulation -->
+    <section class="card" id="card-gifts">
+      <h2>🎁 Simular presentes</h2>
+      <div class="row">
+        <label class="field grow">
+          <span>Nome do espectador</span>
+          <input id="in-nick" type="text" placeholder="aleatório" maxlength="40" />
+        </label>
+        <label class="field small">
+          <span>Quantidade</span>
+          <input id="in-count" type="number" min="1" max="200" value="1" />
+        </label>
+        <label class="check" title="Envia N eventos com repeatCount crescente e fecha com repeatEnd, como o TikTok faz">
+          <input id="in-streak" type="checkbox" /> <span>Como sequência (streak)</span>
+        </label>
+      </div>
+      <div class="btn-grid gifts" id="gift-buttons">
+        <button class="btn gift villain" data-gift="Rose" data-id="5655" data-coins="1" title="Vilão: 1 bomba">😈🌹 Rosa <small>1</small></button>
+        <button class="btn gift villain" data-gift="Doughnut" data-coins="30" title="Vilão: 3 bombas">😈🍩 Rosquinha <small>30</small></button>
+        <button class="btn gift villain" data-gift="Confetti" data-coins="100" title="Vilão: 8 bombas">😈🎊 Confete <small>100</small></button>
+        <button class="btn gift villain" data-gift="Money Gun" data-coins="500" title="Vilão: 12 bombas + morde −2">😈💸 Arma <small>500</small></button>
+        <button class="btn gift villain" data-gift="Motorcycle" data-coins="2988" title="Vilão: 20 bombas + morde −4">😈🏍️ Moto <small>2.988</small></button>
+        <button class="btn gift villain" data-gift="Lion" data-coins="29999" title="Vilão supremo: 40 bombas + morde −6">😈🦁 Leão <small>29.999</small></button>
+        <button class="btn gift hero" data-gift="GG" data-coins="1" title="Herói: +1 comida dourada">😇🎮 GG <small>1</small></button>
+        <button class="btn gift hero" data-gift="Finger Heart" data-coins="5" title="Herói: +2 comidas">😇🫰 Coração <small>5</small></button>
+        <button class="btn gift hero" data-gift="Paper Crane" data-coins="99" title="Herói: cresce +3">😇🕊️ Tsuru <small>99</small></button>
+        <button class="btn gift hero" data-gift="Swan" data-coins="699" title="Herói: limpa TODAS as bombas">😇🦢 Cisne <small>699</small></button>
+        <button class="btn gift hero" data-gift="Galaxy" data-coins="1000" title="Herói: escudo 30 s + limpa">😇🌌 Galáxia <small>1.000</small></button>
+        <button class="btn gift hero" data-gift="TikTok Universe" data-coins="44999" title="Herói supremo">😇🌠 Universo <small>44.999</small></button>
+      </div>
+      <details class="custom">
+        <summary>Presente personalizado</summary>
+        <div class="row">
+          <label class="field grow"><span>Nome do presente</span><input id="in-gift-name" type="text" placeholder="ex.: Unicorn" maxlength="60" /></label>
+          <label class="field small"><span>ID (opcional)</span><input id="in-gift-id" type="text" placeholder="5655" maxlength="20" /></label>
+          <label class="field small"><span>Moedas</span><input id="in-gift-coins" type="number" min="0" max="100000" value="10" /></label>
+          <button class="btn btn-primary" id="btn-gift-custom" type="button">Enviar</button>
+        </div>
+      </details>
+    </section>
+
+    <!-- Social simulation -->
+    <section class="card" id="card-social">
+      <h2>💬 Simular interações</h2>
+      <form class="row" id="form-chat">
+        <label class="field grow"><span>Mensagem no chat</span><input id="in-chat" type="text" placeholder="Vai cobra!" maxlength="200" /></label>
+        <button class="btn" type="submit">💬 Enviar chat</button>
+      </form>
+      <div class="row">
+        <label class="field small"><span>Curtidas</span><input id="in-likes" type="number" min="1" max="1000" value="15" /></label>
+        <button class="btn" id="btn-like" type="button">❤️ Curtir</button>
+        <button class="btn" id="btn-follow" type="button">➕ Seguir</button>
+        <button class="btn" id="btn-share" type="button">↗️ Compartilhar</button>
+        <button class="btn" id="btn-member" type="button">🚪 Entrar</button>
+      </div>
+      <div class="row">
+        <label class="field small"><span>Espectadores</span><input id="in-viewers" type="number" min="0" max="1000000" value="120" /></label>
+        <button class="btn" id="btn-viewers" type="button">👁 Definir espectadores</button>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="card" id="card-stats">
+      <div class="card-head">
+        <h2>🏆 Placar</h2>
+        <button class="btn btn-danger btn-sm" id="btn-stats-reset" type="button">Zerar placar</button>
+      </div>
+      <div class="scoreboard">
+        <div class="score win"><span class="label">Vitórias</span><span class="num" id="st-wins">0</span></div>
+        <div class="score x">✕</div>
+        <div class="score loss"><span class="label">Derrotas</span><span class="num" id="st-losses">0</span></div>
+      </div>
+      <div class="kv">
+        <div><span class="k">Rodadas</span><span class="v" id="st-rounds">0</span></div>
+        <div><span class="k">Sequência atual</span><span class="v" id="st-streak">0</span></div>
+        <div><span class="k">Melhor sequência</span><span class="v" id="st-best">0</span></div>
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="tbl-history">
+          <thead><tr><th>#</th><th>Resultado</th><th>Maçãs</th><th>Bombas</th><th>Tam.</th><th>Duração</th><th>Top presente</th></tr></thead>
+          <tbody><tr><td colspan="7" class="muted">Nenhuma rodada registrada ainda.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section class="card" id="card-leaderboard">
+      <div class="card-head">
+        <h2>🪙 Ranking de presentes</h2>
+        <button class="btn btn-danger btn-sm" id="btn-lb-reset" type="button">Zerar ranking</button>
+      </div>
+      <p class="hint" id="lb-scope">Escopo: live atual.</p>
+      <ol class="leaderboard" id="lb-list"><li class="muted">Ninguém mandou presente ainda.</li></ol>
+    </section>
+
+    <!-- Rules editor -->
+    <section class="card span-2" id="card-rules">
+      <div class="card-head">
+        <h2>⚙️ Regras dos presentes <code>config/gifts.json</code></h2>
+        <div class="row tight">
+          <button class="btn btn-sm" id="btn-rules-validate" type="button">Validar</button>
+          <button class="btn btn-sm" id="btn-rules-reload" type="button">Recarregar</button>
+          <button class="btn btn-sm btn-ghost" id="btn-rules-default" type="button">Restaurar padrão</button>
+          <button class="btn btn-sm btn-primary" id="btn-rules-save" type="button">Salvar e aplicar</button>
+        </div>
+      </div>
+      <div class="rules-layout">
+        <textarea id="ta-rules" spellcheck="false" rows="22" aria-label="Regras em JSON"></textarea>
+        <aside class="rules-help">
+          <h3>Como funciona</h3>
+          <ul>
+            <li><code>mode: "all"</code> — todo presente vale: usa a regra dele ou <code>default</code>.</li>
+            <li><code>mode: "allowlist"</code> — só os presentes da lista <code>gifts</code> valem; os demais seguem <code>unlisted</code>.</li>
+            <li><code>match</code> — nomes (sem diferença de maiúsculas/acentos). <code>ids</code> — ids numéricos do TikTok.</li>
+            <li><code>team</code> — <code>"villain"</code> (atrapalha) ou <code>"hero"</code> (ajuda).</li>
+            <li><code>effects</code> — por unidade: <code>bombs</code>, <code>food</code> (comida dourada), <code>grow</code> (cresce na hora), <code>attack</code> (morde a cobra), <code>shieldSec</code> (escudo), <code>clearBombs</code> (limpa tudo).</li>
+            <li><code>tier</code> — <code>"normal"</code>, <code>"mega"</code> ou <code>"supreme"</code> (visual do card).</li>
+            <li>Sem regra: vira vilão pelo valor — <code>bombsPerUnit + ⌊moedas / bombsPerCoins⌋</code> bombas.</li>
+          </ul>
+          <h3>Exemplo: só Rosa (vilã) e GG (herói)</h3>
+          <pre id="rules-example">{
+  "mode": "allowlist",
+  "unlisted": { "show": false, "countCoins": true },
+  "fallback": { "team": "villain", "bombsPerUnit": 1,
+                "bombsPerCoins": 10, "maxBombsPerEvent": 30 },
+  "gifts": [
+    { "name": "Rosa", "match": ["Rose", "Rosa"], "ids": [5655],
+      "team": "villain", "effects": { "bombs": 1 }, "desc": "solta 1 bomba" },
+    { "name": "GG", "match": ["GG"],
+      "team": "hero", "effects": { "food": 1 }, "desc": "+1 comida dourada" }
+  ]
+}</pre>
+          <button class="btn btn-sm btn-ghost" id="btn-rules-example" type="button">Usar este exemplo</button>
+        </aside>
+      </div>
+      <p id="rules-status" class="status-line muted">Carregando regras…</p>
+    </section>
+
+    <!-- Log -->
+    <section class="card span-2" id="card-log">
+      <div class="card-head">
+        <h2>📜 Eventos</h2>
+        <div class="row tight">
+          <label class="check"><input id="chk-log-pause" type="checkbox" /> <span>Pausar</span></label>
+          <button class="btn btn-sm btn-ghost" id="btn-log-clear" type="button">Limpar</button>
+        </div>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
+
+  <script type="module" src="/js/painel.js"></script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HUD demo — Cobra 3D</title>
+  <link rel="stylesheet" href="../css/overlay.css">
+  <style>
+    /* Fake stage: nebula gradient + a dashed guide where the board must sit (portrait band 20–74 %, 92 % width). */
+    #stage {
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(34, 211, 238, 0.18), transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(167, 139, 250, 0.2), transparent 55%),
+        linear-gradient(180deg, #060a18, #0b1230 60%, #05070f);
+    }
+    .guide {
+      position: absolute;
+      border: 2px dashed rgba(34, 211, 238, 0.45);
+      border-radius: 4px;
+      color: rgba(34, 211, 238, 0.7);
+      font: 700 11px/1.3 system-ui, sans-serif;
+      padding: 4px 6px;
+      pointer-events: none;
+    }
+    .guide.board {
+      left: 4%; right: 4%; top: 20%; bottom: 26%;
+      background: repeating-linear-gradient(45deg, rgba(52, 211, 153, 0.05) 0 12px, transparent 12px 24px);
+      display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    /* single format: portrait band 20–74% always (client request 2026-09-03) */
+    body.no-guides .guide { display: none; }
+    #demo-controls {
+      position: fixed; left: 0.6rem; bottom: 0.6rem; z-index: 60;
+      display: flex; flex-wrap: wrap; gap: 4px; max-width: 45vw;
+      background: rgba(0, 0, 0, 0.7); padding: 6px; border-radius: 8px;
+      font: 700 11px system-ui, sans-serif;
+      opacity: 0.35; transition: opacity 0.2s;
+    }
+    #demo-controls:hover { opacity: 1; }
+    body.no-controls #demo-controls { display: none; }
+    #demo-controls button { font: inherit; padding: 4px 6px; border-radius: 5px; border: 1px solid #475569; background: #1e293b; color: #fff; cursor: pointer; }
+    #demo-controls button:hover { background: #334155; }
+    #demo-controls .sep { width: 100%; height: 0; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div class="guide board">tabuleiro (20–74 %)</div>
+  </div>
+  <div id="hud" class="hud"></div>
+
+  <div id="demo-controls">
+    <button data-do="gift">🌹 Rosa 😈</button>
+    <button data-do="streak">🌹 Streak ×5</button>
+    <button data-do="giftHero">🎮 GG 😇</button>
+    <button data-do="giftNoDesc">💛 sem desc</button>
+    <button data-do="megaVillain">🏍️ Moto (mega 😈)</button>
+    <button data-do="megaHero">🌌 Galáxia (mega 😇)</button>
+    <button data-do="supremeVillain">🦁 Leão (supremo 😈)</button>
+    <button data-do="supremeHero">🌠 Universo (supremo 😇)</button>
+    <span class="sep"></span>
+    <button data-do="lbFull">Placar cheio</button>
+    <button data-do="lbOneSide">Placar 1 lado</button>
+    <button data-do="lbZero">Placar 0×0</button>
+    <button data-do="lbLegacy">Placar antigo (v1)</button>
+    <button data-do="shieldOn">🛡️ Escudo 30s</button>
+    <button data-do="shieldOff">🛡️ off</button>
+    <span class="sep"></span>
+    <button data-do="chat">💬 Chat</button>
+    <button data-do="like">❤️ Like</button>
+    <button data-do="follow">➕ Seguir</button>
+    <button data-do="share">🔁 Share</button>
+    <button data-do="toast">Toast</button>
+    <button data-do="bomb">💣 Comer bomba</button>
+    <button data-do="grow">🍎 Crescer</button>
+    <button data-do="countdown">3-2-1</button>
+    <button data-do="win">🏆 Vitória</button>
+    <button data-do="loss">💀 Derrota</button>
+    <button data-do="guides">Guias (G)</button>
+    <button data-do="hud">HUD (H)</button>
+  </div>
+
+  <script type="module">
+    import { createHud } from '../js/ui/hud.js';
+
+    const params = new URLSearchParams(location.search);
+    const hud = createHud(document.getElementById('hud'), { obs: params.get('obs') === '1' });
+
+    // ---- fake data ----------------------------------------------------------------------
+    const svgAvatar = (txt, color) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="${color}"/><text x="32" y="40" font-size="26" font-family="sans-serif" font-weight="700" text-anchor="middle" fill="#06101a">${txt}</text></svg>`);
+    const users = [
+      { userId: 'u1', uniqueId: 'ana.live', nickname: 'Ana Beatriz', avatarUrl: svgAvatar('AB', '#fbbf24') },
+      { userId: 'u2', uniqueId: 'bruno', nickname: 'Bruno Gamer 🎮', avatarUrl: svgAvatar('BG', '#22d3ee') },
+      { userId: 'u3', uniqueId: 'carlinha', nickname: 'Carlinha do Grau', avatarUrl: null },
+      { userId: 'u4', uniqueId: 'diego', nickname: 'Diego', avatarUrl: 'https://invalid.example/404.png' },
+      { userId: 'u5', uniqueId: 'edu.zip', nickname: 'Edu 🚀', avatarUrl: svgAvatar('ED', '#34d399') },
+      { userId: 'u6', uniqueId: 'fabi', nickname: 'Fabi da Quebrada', avatarUrl: svgAvatar('FA', '#a78bfa') }
+    ];
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const chats = ['vai cobra!!!', 'manda bomba kkk', 'que jogo é esse?', 'cobra brava 🐍🔥', 'GG', 'bora vencer essa', 'kkkkkkkkkk', 'alguém manda um leão aí'];
+
+    let stats = {
+      wins: 12, losses: 3, rounds: 15, currentStreak: 3, bestWinStreak: 7,
+      history: [
+        { roundId: 15, result: 'win' }, { roundId: 14, result: 'win' }, { roundId: 13, result: 'win' },
+        { roundId: 12, result: 'loss' }, { roundId: 11, result: 'win' }, { roundId: 10, result: 'loss' }
+      ]
+    };
+
+    // ---- leaderboard v2 fixtures (Gifter = { userId, …, coins, villainCoins, heroCoins }) --
+    const gifter = (u, { villain = 0, hero = 0, gifts = 5 } = {}) => ({
+      ...u, coins: villain + hero, gifts, villainCoins: villain, heroCoins: hero, lastAt: Date.now()
+    });
+    const lbBase = { scope: 'live', roomId: '123' };
+
+    const lbFull = { ...lbBase,
+      top: [
+        gifter(users[0], { villain: 29999, gifts: 3 }),
+        gifter(users[3], { hero: 20000, gifts: 2 }),
+        gifter(users[4], { hero: 1200, villain: 30, gifts: 14 })
+      ],
+      teams: {
+        villain: {
+          coins: 31240,
+          top: [gifter(users[0], { villain: 29999 }), gifter(users[1], { villain: 988 }), gifter(users[2], { villain: 150 })]
+        },
+        hero: {
+          coins: 22150,
+          top: [gifter(users[3], { hero: 20000 }), gifter(users[4], { hero: 1200, villain: 30 }), gifter(users[5], { hero: 99 })]
+        }
+      }
+    };
+    lbFull.leader = lbFull.top[0];
+
+    const lbOneSide = { ...lbBase,
+      top: [gifter(users[1], { villain: 3200 }), gifter(users[2], { villain: 150 })],
+      teams: {
+        villain: { coins: 3350, top: [gifter(users[1], { villain: 3200 }), gifter(users[2], { villain: 150 })] },
+        hero: { coins: 0, top: [] }
+      },
+      leader: null
+    };
+
+    const lbZero = { ...lbBase,
+      top: [], leader: null,
+      teams: { villain: { coins: 0, top: [] }, hero: { coins: 0, top: [] } }
+    };
+
+    // Old v1 payload (no `teams`): setLeaderboard must fall back to the overall top-3 list.
+    const lbLegacy = { ...lbBase,
+      leader: null,
+      top: [
+        { ...users[0], coins: 12500, gifts: 40, lastAt: Date.now() },
+        { ...users[1], coins: 3200, gifts: 12, lastAt: Date.now() },
+        { ...users[2], coins: 150, gifts: 5, lastAt: Date.now() }
+      ]
+    };
+    lbLegacy.leader = lbLegacy.top[0];
+
+    const snap = {
+      roundId: 16, phase: 'playing', w: 16, h: 16, cells: 256,
+      danger: false, apples: 27, bombsEaten: 1, length: 30, progress: 30 / 256, speed: 6.81,
+      bombs: [{ id: 'b1' }, { id: 'b2' }, { id: 'b3' }], bombQueue: 0,
+      foods: [], shieldLeft: 0, growthPending: 0, foodEaten: 0,
+      startedAt: Date.now(), endedAt: null, durationMs: 0
+    };
+
+    hud.setStats(stats);
+    hud.setLeaderboard(lbFull);
+    hud.setTiktokStatus({ status: 'connected', username: 'streamer_br', roomId: '123', message: null, viewers: 1834 });
+    hud.setConnection(true);
+    hud.update(snap);
+
+    // Simulated gameplay: apples grow, timer runs, shield ticks down.
+    setInterval(() => {
+      if (snap.phase !== 'playing') return;
+      snap.durationMs = Date.now() - snap.startedAt;
+      if (snap.shieldLeft > 0) snap.shieldLeft = Math.max(0, snap.shieldLeft - 0.4);
+      if (Math.random() < 0.25) { snap.apples += 1; snap.length += 1; snap.progress = snap.length / snap.cells; snap.speed = Math.min(13, 6 + (snap.length - 3) * 0.03); }
+      hud.update(snap);
+    }, 400);
+
+    // ---- gifts (GiftEvent.rule v2: team/tier/effects/desc + legacy bombs/effect) ---------
+    let giftSeq = 0;
+    const mkGift = (user, name, opts = {}) => {
+      const effects = { bombs: 0, food: 0, grow: 0, attack: 0, shieldSec: 0, clearBombs: false, ...(opts.effects || {}) };
+      const tier = opts.tier || 'normal';
+      return {
+        id: 'g' + (++giftSeq), user,
+        giftId: opts.giftId || '5655', giftName: name, giftImageUrl: opts.image ?? null,
+        diamondCount: opts.diamondCount ?? 1, count: opts.count ?? 1, repeatCount: opts.repeatCount ?? opts.count ?? 1,
+        coins: (opts.diamondCount ?? 1) * (opts.count ?? 1), streakEnd: opts.streakEnd ?? true,
+        rule: {
+          show: true, matched: true, ruleName: name,
+          team: opts.team || 'villain', tier, effects,
+          desc: opts.desc ?? null,
+          bombs: effects.bombs, effect: tier === 'normal' ? 'normal' : 'mega'
+        }
+      };
+    };
+    const roseImg = svgAvatar('🌹', '#fb7185');
+
+    const actions = {
+      gift() { hud.showGift(mkGift(pick(users), 'Rosa', { image: roseImg, team: 'villain', effects: { bombs: 1 }, desc: 'solta 1 bomba' })); },
+      streak() {
+        const u = users[1];
+        let n = 0;
+        const t = setInterval(() => {
+          n += 1;
+          hud.showGift(mkGift(u, 'Rosa', { giftId: '5655', image: roseImg, count: 1, repeatCount: n, streakEnd: n === 5, team: 'villain', effects: { bombs: 1 }, desc: 'solta 1 bomba' }));
+          if (n >= 5) clearInterval(t);
+        }, 500);
+      },
+      giftHero() { hud.showGift(mkGift(pick(users), 'GG', { team: 'hero', diamondCount: 1, effects: { food: 1 }, desc: '+1 comida dourada' })); },
+      // no desc on purpose: the card must derive the pt-BR effect line from rule.effects
+      giftNoDesc() { hud.showGift(mkGift(pick(users), 'Coração nas Mãos', { team: 'hero', diamondCount: 100, effects: { food: 4, grow: 1 } })); },
+      megaVillain() {
+        hud.showGift(mkGift(users[1], 'Moto', { team: 'villain', tier: 'mega', diamondCount: 2988, effects: { bombs: 20, attack: 4 }, desc: '20 bombas + atropela −4 da cobra' }));
+        hud.flash('red');
+      },
+      megaHero() {
+        hud.showGift(mkGift(users[4], 'Galáxia', { team: 'hero', tier: 'mega', diamondCount: 1000, effects: { clearBombs: true, shieldSec: 30 }, desc: '🛡️ escudo 30 s + limpa as bombas' }));
+        hud.flash('green');
+        snap.shieldLeft = 30; hud.update(snap);
+      },
+      supremeVillain() {
+        hud.showGift(mkGift(users[0], 'Leão', { team: 'villain', tier: 'supreme', diamondCount: 29999, effects: { bombs: 40, attack: 6 }, desc: '👑 40 bombas + mordida −6' }));
+        hud.flash('gold');
+      },
+      supremeHero() {
+        hud.showGift(mkGift(users[5], 'Universo TikTok', { team: 'hero', tier: 'supreme', diamondCount: 44999, effects: { grow: 15, food: 10, clearBombs: true, shieldSec: 60 }, desc: '🌌 SUPREMO: +15, 10 comidas, limpa e escudo 60 s' }));
+        hud.flash('gold');
+        snap.shieldLeft = 60; hud.update(snap);
+      },
+      lbFull() { hud.setLeaderboard(lbFull); },
+      lbOneSide() { hud.setLeaderboard(lbOneSide); },
+      lbZero() { hud.setLeaderboard(lbZero); },
+      lbLegacy() { hud.setLeaderboard(lbLegacy); },
+      shieldOn() { snap.shieldLeft = 30; hud.update(snap); },
+      shieldOff() { snap.shieldLeft = 0; hud.update(snap); },
+      chat() { hud.pushChat({ user: pick(users), text: pick(chats) }); },
+      like() { hud.showLike({ user: pick(users), count: 5 + Math.floor(Math.random() * 30) }); },
+      follow() { hud.showSocial('follow', pick(users)); },
+      share() { hud.showSocial('share', pick(users)); },
+      toast() { hud.showToast(pick(['Servidor não respondeu — jogando offline', 'Configuração aplicada', 'Erro (loop): boom']), pick(['info', 'warn', 'error', 'success'])); },
+      bomb() { snap.length = Math.max(3, snap.length - 3); snap.danger = snap.length - 3 < 3; snap.bombsEaten += 1; hud.update(snap); hud.flash('red'); hud.showToast(`💥 Bomba! A cobra encolheu −3 · tamanho ${snap.length}`, 'warn'); },
+      grow() { snap.length += 3; snap.danger = false; hud.update(snap); hud.showToast('🍎 A cobra cresceu +3', 'success'); },
+      async countdown() {
+        snap.phase = 'countdown';
+        await hud.showCountdown(snap.roundId, 3, { onTick: (n) => console.log('tick', n) });
+        snap.phase = 'playing'; snap.startedAt = Date.now();
+      },
+      async win() {
+        snap.phase = 'won';
+        stats = { ...stats, wins: stats.wins + 1, currentStreak: stats.currentStreak + 1, history: [{ roundId: snap.roundId, result: 'win' }, ...stats.history] };
+        const p = hud.showRoundEnd({ result: 'win', apples: 253, bombsEaten: 2, length: 256, durationMs: 214000, roundId: snap.roundId }, 6, stats);
+        setTimeout(() => hud.setStats(stats), 400); // simulate server 'stats' arriving after round_end
+        await p;
+        snap.roundId += 1; snap.apples = 0; snap.length = 3; snap.progress = 3 / 256; snap.danger = true; snap.phase = 'playing'; snap.startedAt = Date.now();
+      },
+      async loss() {
+        snap.phase = 'lost';
+        stats = { ...stats, losses: stats.losses + 1, currentStreak: -1, history: [{ roundId: snap.roundId, result: 'loss' }, ...stats.history] };
+        hud.flash('red');
+        await hud.showRoundEnd({ result: 'loss', apples: 41, bombsEaten: 5, length: 12, durationMs: 63000, roundId: snap.roundId }, 5, stats);
+        snap.roundId += 1; snap.apples = 0; snap.length = 3; snap.progress = 3 / 256; snap.danger = true; snap.phase = 'playing'; snap.startedAt = Date.now();
+      },
+      guides() { document.body.classList.toggle('no-guides'); },
+      hud() { hud.toggle(); }
+    };
+
+    document.getElementById('demo-controls').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-do]');
+      if (b) Promise.resolve(actions[b.dataset.do]?.()).catch(console.error);
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'g') actions.guides();
+      if (e.key.toLowerCase() === 'h') actions.hud();
+    });
+
+    // Auto script when ?auto=1 (used for screenshots): a burst of everything.
+    if (params.get('auto') === '1') {
+      actions.gift();
+      setTimeout(actions.chat, 200);
+      setTimeout(actions.chat, 700);
+      setTimeout(actions.chat, 1300);
+      setTimeout(actions.like, 400);
+      setTimeout(actions.follow, 900);
+      setTimeout(actions.toast, 1200);
+      setTimeout(actions.shieldOn, 300);
+    }
+    window.__hudDemo = { hud, actions, snap, boards: { lbFull, lbOneSide, lbZero, lbLegacy } };
+  </script>
+</body>
+</html>

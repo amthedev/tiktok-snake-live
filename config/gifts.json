@@ -1,0 +1,262 @@
+{
+  "mode": "all",
+  "unlisted": {
+    "show": true,
+    "countCoins": true
+  },
+  "fallback": {
+    "team": "villain",
+    "bombsPerUnit": 1,
+    "bombsPerCoins": 10,
+    "maxBombsPerEvent": 30
+  },
+  "gifts": [
+    {
+      "name": "Rosa",
+      "match": [
+        "Rose",
+        "Rosa"
+      ],
+      "ids": [
+        5655
+      ],
+      "coins": 1,
+      "team": "villain",
+      "tier": "normal",
+      "effects": {
+        "bombs": 1
+      },
+      "desc": "solta 1 bomba"
+    },
+    {
+      "name": "Casquinha",
+      "match": [
+        "Ice Cream Cone",
+        "Casquinha",
+        "Sorvete"
+      ],
+      "coins": 1,
+      "team": "villain",
+      "tier": "normal",
+      "effects": {
+        "bombs": 1
+      },
+      "desc": "solta 1 bomba"
+    },
+    {
+      "name": "Rosquinha",
+      "match": [
+        "Doughnut",
+        "Donut",
+        "Rosquinha"
+      ],
+      "coins": 30,
+      "team": "villain",
+      "tier": "normal",
+      "effects": {
+        "bombs": 3
+      },
+      "desc": "solta 3 bombas"
+    },
+    {
+      "name": "Boné",
+      "match": [
+        "Cap",
+        "Boné",
+        "Bone"
+      ],
+      "coins": 99,
+      "team": "villain",
+      "tier": "normal",
+      "effects": {
+        "bombs": 6
+      },
+      "desc": "solta 6 bombas"
+    },
+    {
+      "name": "Confete",
+      "match": [
+        "Confetti",
+        "Confete"
+      ],
+      "coins": 100,
+      "team": "villain",
+      "tier": "normal",
+      "effects": {
+        "bombs": 8
+      },
+      "desc": "chuva de 8 bombas"
+    },
+    {
+      "name": "Arma de Dinheiro",
+      "match": [
+        "Money Gun",
+        "Arma de Dinheiro"
+      ],
+      "coins": 500,
+      "team": "villain",
+      "tier": "mega",
+      "effects": {
+        "bombs": 12,
+        "attack": 2
+      },
+      "desc": "12 bombas + morde −2 da cobra"
+    },
+    {
+      "name": "Moto",
+      "match": [
+        "Motorcycle",
+        "Moto"
+      ],
+      "coins": 2988,
+      "team": "villain",
+      "tier": "mega",
+      "effects": {
+        "bombs": 20,
+        "attack": 4
+      },
+      "maxPerEvent": 40,
+      "desc": "20 bombas + atropela −4 da cobra"
+    },
+    {
+      "name": "Leão",
+      "match": [
+        "Lion",
+        "Leão",
+        "Leao"
+      ],
+      "coins": 29999,
+      "team": "villain",
+      "tier": "supreme",
+      "effects": {
+        "bombs": 40,
+        "attack": 6
+      },
+      "maxPerEvent": 60,
+      "desc": "👑 40 bombas + mordida −6"
+    },
+    {
+      "name": "GG",
+      "match": [
+        "GG"
+      ],
+      "coins": 1,
+      "team": "hero",
+      "tier": "normal",
+      "effects": {
+        "food": 1
+      },
+      "desc": "+1 comida dourada"
+    },
+    {
+      "name": "Coraçãozinho",
+      "match": [
+        "Finger Heart",
+        "Coraçãozinho",
+        "Coração"
+      ],
+      "coins": 5,
+      "team": "hero",
+      "tier": "normal",
+      "effects": {
+        "food": 2
+      },
+      "desc": "+2 comidas douradas"
+    },
+    {
+      "name": "Tsuru de Papel",
+      "match": [
+        "Paper Crane",
+        "Tsuru de Papel",
+        "Tsuru"
+      ],
+      "coins": 99,
+      "team": "hero",
+      "tier": "normal",
+      "effects": {
+        "grow": 3
+      },
+      "desc": "a cobra cresce +3 na hora"
+    },
+    {
+      "name": "Coração nas Mãos",
+      "match": [
+        "Hand Hearts",
+        "Hands Heart",
+        "Coração nas Mãos"
+      ],
+      "coins": 100,
+      "team": "hero",
+      "tier": "normal",
+      "effects": {
+        "food": 4,
+        "grow": 1
+      },
+      "desc": "+4 comidas e cresce +1"
+    },
+    {
+      "name": "Cisne",
+      "match": [
+        "Swan",
+        "Cisne"
+      ],
+      "coins": 699,
+      "team": "hero",
+      "tier": "mega",
+      "effects": {
+        "clearBombs": true
+      },
+      "desc": "✨ limpa TODAS as bombas"
+    },
+    {
+      "name": "Galáxia",
+      "match": [
+        "Galaxy",
+        "Galáxia",
+        "Galaxia"
+      ],
+      "coins": 1000,
+      "team": "hero",
+      "tier": "mega",
+      "effects": {
+        "clearBombs": true,
+        "shieldSec": 30
+      },
+      "desc": "🛡️ escudo 30 s + limpa as bombas"
+    },
+    {
+      "name": "Foguete",
+      "match": [
+        "Rocket",
+        "Foguete"
+      ],
+      "coins": 20000,
+      "team": "hero",
+      "tier": "mega",
+      "effects": {
+        "grow": 10,
+        "food": 6,
+        "shieldSec": 30
+      },
+      "desc": "🚀 cresce +10, +6 comidas, escudo 30 s"
+    },
+    {
+      "name": "Universo TikTok",
+      "match": [
+        "TikTok Universe",
+        "Universo TikTok",
+        "Universe"
+      ],
+      "coins": 44999,
+      "team": "hero",
+      "tier": "supreme",
+      "effects": {
+        "grow": 15,
+        "food": 10,
+        "clearBombs": true,
+        "shieldSec": 60
+      },
+      "desc": "🌌 SUPREMO: +15, 10 comidas, limpa e escudo 60 s"
+    }
+  ]
+}

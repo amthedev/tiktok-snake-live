@@ -1,0 +1,7 @@
+node_modules/
+.env
+data/stats.json
+data/*.corrupt-*
+*.log
+.DS_Store
+.claude/settings.local.json
