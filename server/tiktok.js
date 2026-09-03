@@ -211,10 +211,13 @@ export class TikTokBridge extends EventEmitter {
   }
 
   _buildOptions() {
+    // The Euler Stream key can come from the panel (persisted in data/stats.json settings —
+    // the production path, since cloud hosts may have no env-var UI) or from the environment.
+    const savedKey = str(this.stats?.settings?.signApiKey, '');
     const opts = {
       enableExtendedGiftInfo: true,
       processInitialData: false,
-      signApiKey: process.env.SIGN_API_KEY || undefined,
+      signApiKey: savedKey || process.env.SIGN_API_KEY || undefined,
     };
     const sessionId = str(process.env.TIKTOK_SESSION_ID, '');
     const idc = str(process.env.TIKTOK_TT_TARGET_IDC, '');

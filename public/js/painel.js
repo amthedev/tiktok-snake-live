@@ -427,7 +427,13 @@ function wire() {
     busy($('#btn-connect'), async () => {
       const username = $('#in-username').value.trim().replace(/^@+/, '');
       if (!username) throw new Error('Informe o usuário do TikTok.');
-      const r = await post('/api/tiktok/connect', { username });
+      const keyField = $('#in-signkey');
+      const rawKey = keyField ? keyField.value.trim() : '';
+      const payload = { username };
+      // Empty field = keep the saved key; the literal word "limpar" clears it.
+      if (rawKey) payload.signApiKey = rawKey.toLowerCase() === 'limpar' ? '' : rawKey;
+      const r = await post('/api/tiktok/connect', payload);
+      if (keyField && rawKey) keyField.value = '';
       state.tiktok = r.tiktok;
       renderTiktok();
       toast(`Conectando a @${username}…`, 'info');

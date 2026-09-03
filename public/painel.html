@@ -39,11 +39,15 @@
           <span>Usuário da live (sem @)</span>
           <input id="in-username" type="text" placeholder="ex.: seu.usuario" maxlength="40" spellcheck="false" />
         </label>
+        <label class="field grow">
+          <span>Chave Euler Stream (opcional)</span>
+          <input id="in-signkey" type="password" placeholder="deixe em branco para manter a salva" maxlength="120" spellcheck="false" autocomplete="off" />
+        </label>
         <button class="btn btn-primary" id="btn-connect" type="submit">Conectar</button>
         <button class="btn btn-danger" id="btn-disconnect" type="button">Desconectar</button>
       </form>
       <p id="tiktok-message" class="status-line muted">Desconectado.</p>
-      <p class="hint">Sem chave <code>SIGN_API_KEY</code> o serviço de assinatura tem limite baixo de conexões — evite conectar/desconectar repetidamente.</p>
+      <p class="hint">A chave gratuita de <a href="https://www.eulerstream.com" target="_blank" rel="noreferrer">eulerstream.com</a> aumenta muito o limite de conexões (recomendada em produção). Ela fica salva só neste servidor — nunca no GitHub. Digite <code>limpar</code> no campo para removê-la.</p>
     </section>
 
     <!-- Snapshot -->

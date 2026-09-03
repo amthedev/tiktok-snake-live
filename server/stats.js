@@ -7,7 +7,7 @@
  *   version: 1,
  *   stats: { wins, losses, rounds, currentStreak, bestWinStreak, history: [...] },
  *   leaderboard: { scope: 'live', roomId, gifters: { [userId]: Gifter } },
- *   settings: { username: string|null, config: object }
+ *   settings: { username: string|null, signApiKey: string|null, config: object }
  * }
  */
 
@@ -39,7 +39,7 @@ export class StatsStore {
     this.path = filePath || path.resolve('data/stats.json');
     this.log = log;
     this.debounceMs = debounceMs;
-    this.data = { version: VERSION, stats: emptyStats(), leaderboard: emptyLeaderboard(), settings: { username: null, config: {} } };
+    this.data = { version: VERSION, stats: emptyStats(), leaderboard: emptyLeaderboard(), settings: { username: null, signApiKey: null, config: {} } };
     this._timer = null;
     this._writing = null; // in-flight write promise
     this._dirty = false;
@@ -97,6 +97,7 @@ export class StatsStore {
       },
       settings: {
         username: typeof settings.username === 'string' ? settings.username : null,
+        signApiKey: typeof settings.signApiKey === 'string' && settings.signApiKey ? settings.signApiKey : null,
         config: settings.config && typeof settings.config === 'object' ? settings.config : {},
       },
     };

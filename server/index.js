@@ -160,8 +160,15 @@ app.get('/api/status', (_req, res) => {
 });
 
 app.post('/api/tiktok/connect', async (req, res) => {
-  const username = cleanUsername(body(req).username ?? stats.settings.username ?? process.env.TIKTOK_USERNAME);
+  const b = body(req);
+  const username = cleanUsername(b.username ?? stats.settings.username ?? process.env.TIKTOK_USERNAME);
   if (!username) return fail(res, 400, 'Informe um nome de usuário válido do TikTok (sem @).');
+  // Optional Euler Stream key from the panel: save when sent, clear when explicitly empty.
+  if (typeof b.signApiKey === 'string') {
+    const key = b.signApiKey.trim();
+    stats.setSetting('signApiKey', key || null);
+    log.info(key ? 'chave Euler Stream atualizada pelo painel' : 'chave Euler Stream removida pelo painel');
+  }
   stats.setSetting('username', username);
   await bridge.connect(username);
   return ok(res, { tiktok: bridge.status });

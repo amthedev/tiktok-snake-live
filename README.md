@@ -84,6 +84,35 @@ Presente que não está na lista vira bomba pelo valor (1 bomba + 1 a cada 10 mo
 restringir só aos da lista, troque `mode` para `"allowlist"` no painel. Tudo editável em
 `config/gifts.json` (times, efeitos, quantidades) sem mexer em código.
 
+## Hospedar na nuvem (Square Cloud)
+
+O projeto já vem pronto para o [Square Cloud](https://squarecloud.app) — os arquivos
+`squarecloud.app` (configuração: porta 80, 512 MB, subdomínio) e `.squarecloudignore` já estão no
+repositório.
+
+**Passo a passo:**
+
+1. Crie a conta em [squarecloud.app](https://squarecloud.app) e assine um plano que hospede sites
+   (o site precisa de 512 MB de RAM).
+2. No painel do Square Cloud: **New Application** → conecte com o **GitHub** → escolha o
+   repositório `tiktok-snake-live` e a branch `main`.
+3. Pronto: **cada `git push` vira um deploy automático**. O jogo fica em
+   `https://cobra3d-live.squareweb.app` (overlay) e `/painel` (controle).
+   - Se o subdomínio `cobra3d-live` já estiver em uso, troque a linha `SUBDOMAIN=` no arquivo
+     `squarecloud.app` e faça push.
+4. Alternativa sem GitHub: baixe o repositório como zip (sem `node_modules`) e envie pelo
+   dashboard.
+
+**Avisos de produção:**
+
+- Use uma chave da Euler Stream em produção — IP de datacenter sem chave é facilmente limitado
+  pelo TikTok. Crie a chave grátis em [eulerstream.com](https://www.eulerstream.com) e cole no
+  campo **"Chave Euler Stream"** do painel (`/painel`) na hora de conectar: ela fica salva no
+  servidor e **nunca vai para o GitHub**. (Alternativa local: `SIGN_API_KEY` no `.env`.)
+- O placar fica em `data/stats.json` no servidor; um redeploy pode zerar esse arquivo (limitação
+  de hospedagem). Para live, o placar da sessão é o que importa.
+- No OBS, aponte a fonte Navegador para a URL pública (`https://SEU-SUBDOMINIO.squareweb.app/?obs=1`).
+
 ## Testes
 
 ```bash
