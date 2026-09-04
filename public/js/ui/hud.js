@@ -16,7 +16,8 @@ const TOAST_MS = 3600;
 const TOAST_MAX = 4;
 const LIKE_MIN_GAP_MS = 100; // ≤ 10/s
 const FLASH_MS = 480;
-const HISTORY_CHIPS = 5;
+// [compacto] Mínimo de vitórias seguidas para o selo 🔥 aparecer. Abaixo disso não é notícia.
+const STREAK_BADGE_MIN = 2;
 
 const STATUS_TEXT = {
   connected: 'AO VIVO',
@@ -172,11 +173,18 @@ export function createHud(root, opts = {}) {
   const confettiLayer = ensure(root, 'hud-confetti', 'div', 'confetti hidden');
 
   // Top band --------------------------------------------------------------------------------
+  // [compacto] A faixa 0–11 % é coberta pela barra do app do TikTok, então TUDO que vivia aqui
+  // era invisível na live e ainda roubava espaço do que importa. O título ("COBRA 3D · AO VIVO")
+  // saiu: o público está vendo o jogo dentro de uma live, ele já sabe as duas coisas.
+  // As pills (status TikTok / 👁 / ❤️ / online-offline) são telemetria do STREAMER, não do
+  // público — "desconectado" só confunde quem assiste. Elas continuam existindo no DOM (os
+  // métodos setViewers/setTiktokStatus/setConnection seguem funcionando e o /painel usa os
+  // mesmos dados), mas ficam fora da tela do público salvo com ?debug=1.
+  const debugPills = (() => {
+    try { return new URLSearchParams(location.search).get('debug') === '1'; } catch { return false; }
+  })();
+
   clear(bandTop);
-  const titleWrap = el('div', 'title-wrap');
-  const title = el('div', 'title');
-  title.append(el('span', 'title-main', 'COBRA 3D'), el('span', 'title-dot', '·'), el('span', 'title-live', 'AO VIVO'));
-  titleWrap.appendChild(title);
   const pills = el('div', 'pills');
   const pillTiktok = el('div', 'pill pill-tiktok');
   pillTiktok.dataset.status = 'disconnected';
@@ -194,9 +202,18 @@ export function createHud(root, opts = {}) {
   pillWs.title = 'Conexão com o servidor';
   pillWs.append(el('span', 'pill-dot'), el('span', 'pill-text', 'offline'));
   pills.append(pillTiktok, pillViewers, pillLikes, pillWs);
-  bandTop.append(titleWrap, pills);
+  // As pills só entram no DOM com ?debug=1. Ficar fora do DOM (em vez de escondido por CSS) é
+  // deliberado: não depende de nenhuma regra da folha de estilo para sumir da live, e o HUD do
+  // público não paga layout por elas. Os nós seguem vivos, então setViewers / setTiktokStatus /
+  // setConnection continuam escrevendo neles sem nenhum `if` extra — e com ?debug=1 aparecem.
+  if (debugPills) bandTop.append(pills);
+  bandTop.classList.toggle('band-debug', !debugPills);
 
   // Score band ------------------------------------------------------------------------------
+  // [compacto] VITÓRIAS × DERROTAS é a narrativa da live e continua sendo o maior número da tela.
+  // O bloco SEQUÊNCIA (−2 · recorde 1) e os chips ✓✗✗ saíram: é estatística de nicho, que só o
+  // streamer acompanha, e ocupava a metade direita da faixa mais nobre. O que sobra da ideia
+  // vira um selo único e só quando é comemorável — uma sequência de vitórias (🔥 N seguidas).
   clear(bandScore);
   const scoreboard = el('div', 'glass scoreboard');
   const colWin = el('div', 'score-col win');
@@ -205,14 +222,8 @@ export function createHud(root, opts = {}) {
   const colLoss = el('div', 'score-col loss');
   const lossNum = el('span', 'num big', '0');
   colLoss.append(el('span', 'lbl', 'DERROTAS'), lossNum);
-  const scoreSide = el('div', 'score-side');
-  const streakEl = el('div', 'streak');
-  const streakLbl = el('span', 'lbl', 'SEQUÊNCIA');
-  const streakNum = el('b', 'num', '0');
-  streakEl.append(streakLbl, streakNum);
-  const historyEl = el('div', 'history');
-  scoreSide.append(streakEl, historyEl);
-  scoreboard.append(colWin, el('div', 'score-x', '✕'), colLoss, scoreSide);
+  const streakEl = el('div', 'streak-badge hidden');
+  scoreboard.append(colWin, el('div', 'score-x', '✕'), colLoss, streakEl);
 
   const statusRow = el('div', 'glass status-row');
   const mkStat = (ico, cls, initial, titleTxt) => {
@@ -222,21 +233,32 @@ export function createHud(root, opts = {}) {
     w.append(el('span', 'stat-ico', ico), n);
     return [w, n];
   };
-  // The snake's length IS its life: bombs shrink it and it dies when the size runs out,
-  // so the length stat doubles as the "life bar" (red + pulsing while in danger).
+  // [compacto] De cinco números miúdos para DOIS grandes. Sobrevivem os que contam a história do
+  // jogo em 2 s e que os presentes mexem: o TAMANHO da cobra (é a vida dela — bombas encolhem e
+  // ela morre no zero) e as BOMBAS no tabuleiro (é o efeito visível do presente de vilão).
+  // Saíram: ⚡ velocidade e ⏱ tempo (não mudam nada para quem assiste, ninguém manda presente por
+  // causa deles) e 🍎 maçãs, que vira a barra de progresso logo abaixo — era o mesmo dado contado
+  // duas vezes. Os nós continuam existindo para update() escrever sem checagem extra.
   const [lenW, lenNum] = mkStat('🐍', 'length', '3', 'Tamanho (vida da cobra)');
-  const [applesW, applesNum] = mkStat('🍎', 'apples', '0', 'Maçãs');
   const [bombsW, bombsNum] = mkStat('💣', 'bombs', '0', 'Bombas no tabuleiro');
+  // O escudo é TRANSITÓRIO: só aparece enquanto está ativo. É o recibo visível de um presente de
+  // herói ("mandei Galáxia → a cobra ficou protegida"), então ganha destaque enquanto dura.
   const [shieldW, shieldNum] = mkStat('🛡️', 'shield', '0s', 'Escudo ativo');
   shieldW.classList.add('shield', 'hidden');
-  const [speedW, speedNum] = mkStat('⚡', 'speed', '0', 'Velocidade (casas/s)');
-  const [timerW, timerNum] = mkStat('⏱', 'timer', '0:00', 'Tempo da rodada');
-  statusRow.append(lenW, applesW, bombsW, shieldW, speedW, timerW);
+  // Fora da tela DE PROPÓSITO: os nós existem e continuam recebendo update() (nenhum `if` novo
+  // no caminho quente, e devolver qualquer um deles à faixa é acrescentar o wrapper no append
+  // abaixo), mas não são anexados ao DOM. Os wrappers `*W` ficam sem uso por isso.
+  const [, applesNum] = mkStat('🍎', 'apples', '0', 'Maçãs');
+  const [, speedNum] = mkStat('⚡', 'speed', '0', 'Velocidade (casas/s)');
+  const [, timerNum] = mkStat('⏱', 'timer', '0:00', 'Tempo da rodada');
+  statusRow.append(lenW, bombsW, shieldW);
 
+  // [compacto] A barra fica; o texto "Rodada 1 · 5 % do tabuleiro" era abstrato ("5 % de quê?").
+  // Vira uma frase concreta e emocional: quantas maçãs ainda faltam para a VITÓRIA.
   const progress = el('div', 'progress');
   progress.setAttribute('role', 'progressbar');
   const progressFill = el('div', 'progress-fill');
-  const progressText = el('div', 'progress-text', 'Rodada 1 · 0 % do tabuleiro');
+  const progressText = el('div', 'progress-text', 'Encha o tabuleiro para vencer!');
   progress.append(progressFill, progressText);
   bandScore.append(scoreboard, statusRow, progress);
 
@@ -247,6 +269,13 @@ export function createHud(root, opts = {}) {
   const countdownOv = el('div', 'overlay countdown hidden');
   const roundEndOv = el('div', 'overlay roundend hidden');
   bandBoard.append(giftSlot, toasts, countdownOv, roundEndOv);
+  // [compacto] O contador ❤️ saiu com as pills, mas a chuva de coraçõezinhos continua: é
+  // decoração viva (mostra que a live está quente), não informação para ler. Precisa ser
+  // reancorada DEPOIS do clear(bandBoard) acima, senão nasce e morre no mesmo tick.
+  if (!debugPills) {
+    likeBurst.classList.add('like-burst-free');
+    bandBoard.appendChild(likeBurst);
+  }
 
   // Leader band: VILÕES × HERÓIS battle (leaderboard v2) -------------------------------------
   clear(bandLeader);
@@ -260,7 +289,10 @@ export function createHud(root, opts = {}) {
   );
   // [persist] Deixa explícito na tela QUAL ranking é este: o duelo é DA RODADA e zera a cada
   // rodada nova; o ranking da LIVE (moedas totais) vive na seção de metas.
-  const battleScope = el('div', 'battle-scope', 'DUELO DESTA RODADA · zera a cada rodada');
+  // [compacto] "DUELO DESTA RODADA · zera a cada rodada" tinha 39 caracteres em 11px — a menor
+  // e mais ilegível linha da tela, explicando uma regra que ninguém precisa saber para jogar
+  // junto. Fica só o rótulo curto, que agora cabe num tamanho legível.
+  const battleScope = el('div', 'battle-scope', 'DUELO DA RODADA');
   const tug = el('div', 'tug');
   const tugVillain = el('div', 'tug-fill villain');
   const tugHero = el('div', 'tug-fill hero');
@@ -281,15 +313,12 @@ export function createHud(root, opts = {}) {
   const lbList = el('ol', 'lb-list');
   legacyBox.append(lbTitle, lbList);
 
-  // Compact gift legend (replaces the old CTA line).
-  const legend = el('div', 'legend');
-  [['🌹', 'bomba 😈'], ['🎮', 'GG comida 😇'], ['🦢', 'limpa'], ['🌌', 'escudo']].forEach(([ico, txt], i) => {
-    if (i) legend.appendChild(el('span', 'legend-dot', '·'));
-    const item = el('span', 'legend-item');
-    item.append(el('span', 'legend-ico', ico), el('span', null, txt));
-    legend.appendChild(item);
-  });
-  bandLeader.append(battleBox, legacyBox, legend);
+  // [compacto] A legenda "🌹 bomba · 🎮 GG comida · 🦢 limpa · 🌌 escudo" era a informação MAIS
+  // valiosa da tela (é ela que ensina o público a converter presente em efeito) e estava em
+  // 13px, ilegível — quatro itens espremidos numa linha só. A ideia não morre: ela migrou para
+  // o carrossel de metas (goals.js, cartão "COMO JOGAR"), onde vira UMA dica por vez, com ícone
+  // grande e a frase "🌹 Rosa = 1 bomba na cobra". Mesma informação, uma de cada vez, legível.
+  bandLeader.append(battleBox, legacyBox);
 
   // Chat band -------------------------------------------------------------------------------
   clear(bandChat);
@@ -348,8 +377,16 @@ export function createHud(root, opts = {}) {
       cache.pct = pct;
       progressFill.style.width = pct + '%';
     }
-    const round = Number(snap.roundId) || 1;
-    setText(progressText, 'ptext', `Rodada ${fmt(round)} · ${pct} % do tabuleiro`);
+    // [compacto] "Rodada 1 · 5 % do tabuleiro" virou um alvo concreto. A cobra vence quando o
+    // corpo dela enche o tabuleiro (progress = length / cells), então o que falta é exatamente
+    // quanto ela ainda precisa CRESCER — o mesmo dado, dito de um jeito que dá vontade de
+    // ajudar ("faltam 227 para a vitória" pede comida; "5 % do tabuleiro" não pede nada).
+    const cells = Number(snap.cells) || 0;
+    const grown = Number(snap.length ?? (snap.snake ? snap.snake.length : 0)) || 0;
+    const left = cells > 0 ? Math.max(0, cells - grown) : 0;
+    setText(progressText, 'ptext', left > 0
+      ? `Faltam ${fmt(left)} para a VITÓRIA!`
+      : 'Encha o tabuleiro para vencer!');
     const phase = snap.phase || 'playing';
     if (cache.phase !== phase) {
       cache.phase = phase;
@@ -364,25 +401,17 @@ export function createHud(root, opts = {}) {
     lastStats = stats;
     setText(winsNum, 'wins', fmt(stats.wins ?? 0));
     setText(lossNum, 'losses', fmt(stats.losses ?? 0));
+    // [compacto] Sequência: de bloco permanente ("SEQUÊNCIA −2 · recorde 1" + 5 chips ✓✗) para
+    // um selo único que só existe quando há algo a comemorar — 2 ou mais vitórias seguidas.
+    // Sequência negativa não vira selo: dizer ao público que a cobra está perdendo há 2 rodadas
+    // não faz ninguém mandar presente, só reforça derrota. O recorde e o histórico saíram de vez
+    // (é dado de streamer; o /painel continua com os números completos).
     const s = Number(stats.currentStreak) || 0;
-    const best = Number(stats.bestWinStreak) || 0;
-    let txt = s > 0 ? `+${s} 🔥` : s < 0 ? `${s}` : '0';
-    if (best > 0) txt += ` · recorde ${best}`;
-    setText(streakNum, 'streak', txt);
-    streakEl.classList.toggle('pos', s > 0);
-    streakEl.classList.toggle('neg', s < 0);
-    const hist = Array.isArray(stats.history) ? stats.history.slice(0, HISTORY_CHIPS).reverse() : [];
-    const key = hist.map((h) => (h.result === 'win' ? 'W' : 'L')).join('');
-    if (cache.hist !== key) {
-      cache.hist = key;
-      clear(historyEl);
-      if (!hist.length) historyEl.appendChild(el('span', 'chip empty', '—'));
-      for (const h of hist) {
-        const win = h.result === 'win';
-        const chip = el('span', 'chip ' + (win ? 'win' : 'loss'), win ? '✓' : '✗');
-        chip.title = win ? 'Vitória' : 'Derrota';
-        historyEl.appendChild(chip);
-      }
+    const streakTxt = s >= STREAK_BADGE_MIN ? `🔥 ${fmt(s)} seguidas` : '';
+    if (cache.streak !== streakTxt) {
+      cache.streak = streakTxt;
+      streakEl.textContent = streakTxt;
+      streakEl.classList.toggle('hidden', !streakTxt);
     }
     // Keep the round-end panel's scoreboard line fresh if it is visible.
     if (roundEndScoreLine) roundEndScoreLine.textContent = scoreLineText(stats);
@@ -404,7 +433,9 @@ export function createHud(root, opts = {}) {
   function renderTeamCol(listEl, top, team) {
     clear(listEl);
     if (!top.length) {
-      listEl.appendChild(el('li', 'team-empty', team === 'villain' ? 'seja o primeiro vilão!' : 'seja o primeiro herói!'));
+      // [compacto] "seja o primeiro vilão!" gastava uma linha inteira para dizer "vazio", nos
+      // dois lados. Um traço marca o lugar sem competir com o que tem conteúdo de verdade.
+      listEl.appendChild(el('li', 'team-empty', '—'));
       return;
     }
     top.forEach((g, i) => {
@@ -459,7 +490,8 @@ export function createHud(root, opts = {}) {
     const hCoins = Math.max(0, Number(battle?.hero?.coins) || 0);
     const vTop = Array.isArray(battle?.villain?.top) ? battle.villain.top.slice(0, 3) : [];
     const hTop = Array.isArray(battle?.hero?.top) ? battle.hero.top.slice(0, 3) : [];
-    const scopeTxt = perRound ? 'DUELO DESTA RODADA · zera a cada rodada' : 'DUELO DA LIVE';
+    // [compacto] Rótulo curto: cabe legível e não gasta a linha explicando uma regra interna.
+    const scopeTxt = perRound ? 'DUELO DA RODADA' : 'DUELO DA LIVE';
     setText(battleScope, 'scope', scopeTxt);
     const sig = (g) => `${g.userId}:${g.villainCoins ?? ''}:${g.heroCoins ?? ''}:${g.coins}:${g.avatarUrl || ''}`;
     const key = `battle|${perRound ? lb?.round?.roundId ?? '' : 'live'}|${vCoins}|${hCoins}|${vTop.map(sig).join(',')}|${hTop.map(sig).join(',')}`;
@@ -679,7 +711,9 @@ export function createHud(root, opts = {}) {
     const box = el('div', 'cd-box');
     const cdTitle = el('div', 'cd-title', `RODADA ${fmt(roundId || 1)}`);
     const cdNum = el('div', 'cd-num num', total > 0 ? String(total) : 'VAI!');
-    const cdHint = el('div', 'cd-hint', 'A cobra vai jogar sozinha — mande presentes para soltar bombas! 💣');
+    // [compacto] Era uma frase de 62 caracteres numa tela que dura 3 s. Encurtada para caber
+    // grande e ser lida de relance — é a deixa de "manda presente" para quem acabou de chegar.
+    const cdHint = el('div', 'cd-hint', '🎁 Mande presentes e mude o jogo!');
     box.append(cdTitle, cdNum, cdHint);
     countdownOv.appendChild(box);
     countdownOv.classList.remove('hidden');
@@ -776,11 +810,13 @@ export function createHud(root, opts = {}) {
       c.append(el('span', 're-ico', ico), el('b', 're-val num', value), el('span', 're-lbl', label));
       return c;
     };
+    // [compacto] O painel de fim de rodada é uma tela cheia por poucos segundos, então ele pode
+    // ser mais generoso — mas 4 células viravam 8 textos miúdos. Ficam as duas que resumem a
+    // rodada: o tamanho que a cobra alcançou e quantas bombas ela comeu. Maçãs (= tamanho) e
+    // tempo saíram pelo mesmo motivo de sempre: não mudam nada para quem assiste.
     grid.append(
-      cell('🍎', 'maçãs', fmt(summary?.apples ?? 0)),
-      cell('💣', 'bombas', fmt(summary?.bombsEaten ?? 0)),
       cell('🐍', 'tamanho', fmt(summary?.length ?? 0)),
-      cell('⏱', 'tempo', formatTime(summary?.durationMs ?? 0))
+      cell('💣', 'bombas', fmt(summary?.bombsEaten ?? 0))
     );
     roundEndScoreLine = el('div', 're-score num', scoreLineText(lastStats));
     const next = el('div', 're-next');

@@ -50,9 +50,14 @@ function drawCard(ctx, W, H, { img, nickname, count, effect, team }) {
   ctx.textBaseline = 'middle';
   ctx.fillText(`×${Math.max(1, count | 0)}`, cx, H * 0.67);
   // Nickname.
+  // [celular] 0.11 → 0.20 da largura do cartão (mesmo tamanho do contador ×N). Medido no palco e
+  // normalizado para 1080 (o formato da live), 0.11 dava 12,8 px — abaixo do piso de 22 px, ilegível
+  // no celular. Com 0.20 e o cartão em 2.8 (ver spawn), o pior caso — cartão no fundo do tabuleiro,
+  // mais distante da câmera — fica em 22,3 px. Como a letra quase dobrou, o truncamento cai de 14
+  // para 10 caracteres, senão um apelido longo vazaria da borda do cartão.
   ctx.fillStyle = '#ffffff';
-  ctx.font = `700 ${Math.round(W * 0.11)}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-  ctx.fillText(truncate(nickname || 'Fã', 14), cx, H * 0.84);
+  ctx.font = `800 ${Math.round(W * 0.2)}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.fillText(truncate(nickname || 'Fã', 10), cx, H * 0.85);
 }
 
 export class GiftPops {
@@ -77,7 +82,13 @@ export class GiftPops {
     const tex = canvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
     const sprite = new THREE.Sprite(mat);
-    const base = mega ? 3.6 : 2.4;
+    // [celular] cartão normal 2.4 → 2.8. O cartão é desenhado num canvas quadrado e projetado em 3D,
+    // então o tamanho do texto na tela depende da LARGURA projetada do sprite (largura útil =
+    // base × 0.8, ver update()). Medido e normalizado para 1080 (o formato da live), com base 2.4 o
+    // apelido caía para 18,2–20,8 px conforme a distância da câmera — abaixo do piso de 22 px na
+    // maior parte do tabuleiro. Com 2.8 o pior caso (cartão no fundo, mais longe) fica ≥22 px.
+    // O cartão 'mega' já passava com folga (27–32 px) e não muda.
+    const base = mega ? 3.6 : 2.8;
     sprite.scale.set(base * (W / H), base, 1);
     sprite.renderOrder = 60;
     const wx = (x + 0.5) * CELL, wz = (z + 0.5) * CELL;

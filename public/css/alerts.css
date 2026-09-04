@@ -1,7 +1,12 @@
 /* public/css/alerts.css
    Alertas de engajamento (alerts.js) + seção de monetização (goals.js).
    Carregado DEPOIS de overlay.css: reutiliza as variáveis (--gold, --glass-bg, …) daquele arquivo.
-   Regra de ouro: nada aqui pode cobrir o miolo do tabuleiro. */
+   Regra de ouro: nada aqui pode cobrir o miolo do tabuleiro.
+
+   [celular] ESCALA TIPOGRÁFICA: os tamanhos vêm da escala --fs-* declarada em overlay.css
+   (--fs-hero / --fs-titulo / --fs-nome / --fs-corpo / --fs-mini). NENHUM texto visível pode ficar
+   abaixo de --fs-mini (≈23 px equivalentes a 1080 de largura, que é o piso que sobrevive à
+   compressão do TikTok visto no celular). Não escreva font-size em rem cru aqui. */
 
 /* ============================================================================
    ALERTAS — fila única, um por vez
@@ -64,7 +69,7 @@
 .alert-body { min-width: 0; }
 
 .alert-text {
-  font-size: 0.95rem;
+  font-size: var(--fs-mini);
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -85,7 +90,7 @@
   border-color: rgba(167, 139, 250, 0.62);
   box-shadow: var(--shadow), 0 0 1.1rem rgba(167, 139, 250, 0.4);
 }
-.alert-follow .alert-text { color: #ddd6fe; font-size: 1.02rem; }
+.alert-follow .alert-text { color: #ddd6fe; font-size: var(--fs-corpo); }
 
 /* [itens] Seguidor com FOTO (pedido do cliente) --------------------------------
    Card bem maior que o de entrada: a foto é o protagonista. */
@@ -124,7 +129,7 @@
   animation: follow-pulse 1.5s ease-in-out infinite;
 }
 
-.follow-avatar .al-initials { font-size: 1.25rem; }
+.follow-avatar .al-initials { font-size: var(--fs-titulo); }
 
 @keyframes follow-pulse {
   0%, 100% { box-shadow: 0 0 0 0.22rem rgba(167, 139, 250, 0.32), 0 0 1.1rem rgba(167, 139, 250, 0.75); }
@@ -133,8 +138,10 @@
 
 .follow-body { display: flex; flex-direction: column; gap: 0.1rem; }
 
+/* [celular] O card de seguidor é um pedido explícito do cliente ("a foto da pessoa"): o nome é o
+   protagonista textual, então vai para destaque de nome (≈30 px). */
 .follow-nick {
-  font-size: 1.22rem;
+  font-size: var(--fs-nome);
   font-weight: 900;
   color: #f5f3ff;
   white-space: nowrap;
@@ -144,10 +151,10 @@
 }
 
 .follow-text {
-  font-size: 0.92rem;
+  font-size: var(--fs-mini);
   font-weight: 700;
   color: #ddd6fe;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
 }
 
@@ -155,8 +162,9 @@
 
 .al-avatar {
   position: relative;
-  width: 1.9rem;
-  height: 1.9rem;
+  /* [celular] Cresce para comportar as iniciais no piso de legibilidade. */
+  width: 2.4rem;
+  height: 2.4rem;
   flex: 0 0 auto;
   border-radius: 50%;
   overflow: hidden;
@@ -181,12 +189,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
   color: #05070f;
 }
 
-.al-avatar-group .al-initials { background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 0.95rem; }
+.al-avatar-group .al-initials { background: rgba(255, 255, 255, 0.14); color: #fff; font-size: var(--fs-mini); }
 
 /* Alerta CAMPEÃO (presente mega/supremo) ---------------------------------- */
 
@@ -230,9 +238,9 @@
 .champ-head {
   position: relative;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.02em;
   color: var(--gold, #fbbf24);
 }
 
@@ -245,13 +253,13 @@
   gap: 0.7rem;
 }
 
-.champ-avatar { width: 2.9rem; height: 2.9rem; border-width: 2px; border-color: var(--gold, #fbbf24); }
-.champ-avatar .al-initials { font-size: 1rem; }
+.champ-avatar { width: 3.2rem; height: 3.2rem; border-width: 2px; border-color: var(--gold, #fbbf24); }
+.champ-avatar .al-initials { font-size: var(--fs-corpo); }
 
 .champ-mid { flex: 1 1 auto; min-width: 0; }
 
 .champ-nick {
-  font-size: 1.15rem;
+  font-size: var(--fs-nome);
   font-weight: 900;
   color: #fff;
   white-space: nowrap;
@@ -260,7 +268,7 @@
 }
 
 .champ-what {
-  font-size: 0.92rem;
+  font-size: var(--fs-mini);
   color: var(--muted, #cbd5e1);
   white-space: nowrap;
   overflow: hidden;
@@ -272,7 +280,7 @@
 
 .champ-effect {
   margin-top: 0.1rem;
-  font-size: 0.86rem;
+  font-size: var(--fs-mini);
   font-weight: 700;
   color: #fde68a;
   white-space: nowrap;
@@ -295,7 +303,7 @@
 .champ-coins {
   position: relative;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: var(--fs-corpo);
   font-weight: 900;
   color: var(--gold, #fbbf24);
 }
@@ -334,12 +342,18 @@
   justify-content: center;
   width: 100%;
   pointer-events: none;
+  /* [celular] A faixa de monetização é o último lugar seguro antes da zona morta do TikTok
+     (83 %). O cartão NÃO pode transbordar dela: medido, ele vazava até 86,6 % e ia parar atrás da
+     barra de presentes do app. `min-height: 0` deixa o filho flex encolher de verdade e o
+     `overflow: hidden` é a rede de segurança final. */
+  min-height: 0;
+  overflow: hidden;
 }
 
 .money {
   position: relative;
   width: 100%;
-  padding: 0.45rem 0.8rem 0.5rem;
+  padding: 0.25rem 0.8rem 0.3rem;
   border-radius: var(--radius, 0.9rem);
   transition: box-shadow 0.3s ease, opacity 0.25s ease;
 }
@@ -351,7 +365,9 @@
   animation: money-hit 1.2s ease;
 }
 
-.money-stage { position: relative; min-height: 3.4rem; }
+/* [celular] A faixa de monetização (72–83 %) é dividida com o painel do duelo: o cartão de metas
+   fica com a metade de baixo (~4,8 % da altura do palco). */
+.money-stage { position: relative; min-height: 3.9rem; }
 
 /* O cartão é visível POR PADRÃO e a animação só o desliza para dentro (backwards, não `both`).
    Se o navegador engasgar e segurar a animação no quadro 0 — o que acontece de verdade quando a
@@ -373,47 +389,41 @@
   margin-bottom: 0.25rem;
 }
 
-.money-ico { font-size: 0.95rem; }
+.money-ico { font-size: var(--fs-corpo); }
 
+/* [celular] O título da meta é a chamada comercial da tela: destaque de nome (≈30 px). */
 .money-title {
-  font-size: 0.82rem;
+  font-size: var(--fs-nome);
   font-weight: 900;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.01em;
   color: var(--gold, #fbbf24);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* [persist] Etiqueta de escopo: diz se o cartão fala da RODADA ou da LIVE inteira. */
-.money-scope {
-  margin: -0.12rem 0 0.2rem;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted, #94a3b8);
-  opacity: 0.85;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* [persist] Etiqueta de escopo: dizia se o cartão fala da RODADA ou da LIVE inteira.
+   [celular] REMOVIDA DA TELA. Era 0.62rem ≈ 12 px, uma das piores violações medidas, e é
+   literalmente a "moedas de toda a live" que o cliente citou como texto inútil. No piso de
+   legibilidade custaria uma linha inteira de um cartão que já não fecha a conta — e o título
+   logo acima ("RANKING DA LIVE") já diz a mesma coisa.
+   Escondida por CSS; o nó continua sendo criado por goals.js, que é do outro agente. */
+.money-scope { display: none; }
 
-.money-sub {
-  margin-top: 0.22rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted, #cbd5e1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* [celular] A terceira linha explicativa do cartão ("Faltam N moedas de HERÓIS…", "Time VILÃO —
+   atrapalhe a cobra!") REMOVIDA DA TELA. Medido: o cartão pedia 50 px numa faixa de 46 px e
+   vazava para dentro da zona morta do TikTok. Esta linha é a candidata certa a sair — ela repete
+   o que o título e a barra de progresso já mostram, e é o tipo de texto que o cliente chamou de
+   desnecessário. O título e a barra ficam, ambos bem grandes.
+   Escondido por CSS (o nó continua sendo criado por goals.js, que é do outro agente). */
+.money-sub { display: none; }
 
 /* Meta ------------------------------------------------------------------- */
 
 .goal-bar {
   position: relative;
-  height: 1.05rem;
+  /* [celular] Cresce para comportar o texto "feito / meta" no piso, dentro da barra. */
+  height: 1.9rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
@@ -435,7 +445,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: var(--fs-corpo);
   font-weight: 900;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
@@ -443,48 +453,67 @@
 
 /* Ranking ---------------------------------------------------------------- */
 
+/* [celular] Era `display:flex` em UMA linha com as 3 pessoas lado a lado — cada uma ficava com
+   ~1/3 da largura, o que só funcionava porque o texto era minúsculo (≈15 px). Com o texto no piso
+   isso viraria três "Ma…". Agora empilha: cada pessoa ocupa a largura toda e o nome cabe inteiro. */
 .rank-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.22rem;
 }
 
 .rank-row {
-  flex: 1 1 0;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.15rem 0.35rem;
+  gap: 0.45rem;
+  padding: 0.12rem 0.5rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.07);
 }
 
 .rank-row.r1 { background: rgba(251, 191, 36, 0.18); }
+/* O líder é a prova social mais forte da tela: nome e moedas em destaque. */
+.rank-row.r1 .rank-nick { font-size: var(--fs-nome); font-weight: 900; }
+.rank-row.r1 .rank-coins { font-size: var(--fs-nome); }
+.rank-row.r1 .rank-avatar { width: 2.3rem; height: 2.3rem; }
+/* [celular] SÓ O 1º LUGAR. Medido: o cartão com 🥇🥈🥉 empilhados pedia 81 px numa faixa de 46 px
+   e vazava até 86 % da altura — atrás da barra de presentes do TikTok, ou seja, invisível de
+   qualquer jeito. Com 2º e 3º escondidos o cartão cabe e o líder aparece GRANDE (≈30 px), que é o
+   que provoca a próxima pessoa a querer o topo. Menos elementos, cada um maior. */
+.rank-row:not(.r1) { display: none; }
+/* As moedas ficam encostadas à direita, alinhadas entre as linhas. */
+.rank-coins { margin-left: auto; }
 
-.rank-medal { font-size: 0.9rem; flex: 0 0 auto; }
+.rank-medal { font-size: var(--fs-corpo); flex: 0 0 auto; }
 
-.rank-avatar { width: 1.5rem; height: 1.5rem; }
-.rank-avatar .al-initials, .rank-avatar .gl-initials { font-size: 0.6rem; }
+.rank-avatar { width: 1.9rem; height: 1.9rem; }
+.rank-avatar .al-initials, .rank-avatar .gl-initials { font-size: var(--fs-mini); }
 
+/* [celular] Nome e moedas do ranking eram 0.76rem/0.74rem ≈ 15/14 px. Vão para o piso.
+   NOTA DE ESPAÇO: três colunas lado a lado a ≈23 px não cabem confortavelmente em 1080 de
+   largura — os nomes viram "Maria F…". A .rank-list abaixo passa a EMPILHAR (uma linha por
+   pessoa), que é o que o espaço comporta em tamanho legível. Se o agente de conteúdo preferir,
+   mostrar só o TOP 1 em tamanho grande é melhor ainda que três empilhados. */
 .rank-nick {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.76rem;
+  font-size: var(--fs-mini);
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.rank-coins { flex: 0 0 auto; font-size: 0.74rem; font-weight: 900; color: var(--gold, #fbbf24); }
+.rank-coins { flex: 0 0 auto; font-size: var(--fs-mini); font-weight: 900; color: var(--gold, #fbbf24); }
 
 .rank-empty {
   flex: 1 1 auto;
   text-align: center;
-  font-size: 0.82rem;
+  font-size: var(--fs-mini);
   font-weight: 700;
   color: var(--muted, #cbd5e1);
   padding: 0.35rem 0;
@@ -494,8 +523,8 @@
 
 .gl-avatar {
   position: relative;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 2rem;
+  height: 2rem;
   flex: 0 0 auto;
   border-radius: 50%;
   overflow: hidden;
@@ -520,23 +549,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.62rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
   color: #05070f;
 }
 
 /* Chamada à ação --------------------------------------------------------- */
 
+/* [celular] A dica "presente X = efeito Y" é instrução de jogo: precisa ser lida de relance. */
 .cta-line {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 1rem;
+  font-size: var(--fs-corpo);
   white-space: nowrap;
   overflow: hidden;
 }
 
-.cta-ico { font-size: 1.25rem; flex: 0 0 auto; }
+.cta-ico { font-size: var(--fs-titulo); flex: 0 0 auto; }
 .cta-name { font-weight: 900; color: #fff; }
 .cta-eq { color: var(--muted, #cbd5e1); font-weight: 900; }
 
@@ -555,7 +585,8 @@
 .duel-bar {
   position: relative;
   display: flex;
-  height: 1.15rem;
+  /* [celular] Comporta os totais dos times (--fs-corpo) por dentro. */
+  height: 1.9rem;
   border-radius: 999px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -569,7 +600,7 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.74rem;
+  font-size: var(--fs-corpo);
   font-weight: 900;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
@@ -589,7 +620,7 @@
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(251, 191, 36, 0.28), rgba(251, 113, 133, 0.2));
   border: 1px solid rgba(251, 191, 36, 0.6);
-  font-size: 0.74rem;
+  font-size: var(--fs-mini);
   white-space: nowrap;
   overflow: hidden;
   opacity: 1;
@@ -598,8 +629,8 @@
 
 .money-badge.hidden { display: none; }
 .money-badge .badge-txt { font-weight: 900; letter-spacing: 0.04em; color: var(--gold, #fbbf24); }
-.money-badge .badge-avatar { width: 1.3rem; height: 1.3rem; }
-.money-badge .badge-avatar .gl-initials { font-size: 0.55rem; }
+.money-badge .badge-avatar { width: 1.8rem; height: 1.8rem; }
+.money-badge .badge-avatar .gl-initials { font-size: var(--fs-mini); }
 .money-badge .badge-nick { color: #fff; font-weight: 900; }
 .money-badge .badge-sep { color: var(--muted, #cbd5e1); }
 .money-badge .badge-gift { font-weight: 700; color: #fde68a; }
@@ -607,11 +638,12 @@
 
 /* Pontinhos do carrossel ------------------------------------------------- */
 
+/* Os pontinhos do carrossel são orientação, não leitura: ficam finos e colados no cartão. */
 .money-dots {
   display: flex;
   justify-content: center;
   gap: 0.28rem;
-  margin-top: 0.28rem;
+  margin-top: 0.15rem;
 }
 
 .money-dot {

@@ -219,11 +219,14 @@ export function createGoals(container, opts = {}) {
     const pct = target > 0 ? Math.min(100, Math.round((done / target) * 100)) : 0;
     const left = Math.max(0, target - done);
 
+    // [compacto] O título carregava o alvo em moedas ("META: 300 moedas para 🛡️ SUPER ESCUDO"),
+    // repetindo o número que a barra logo abaixo já mostra em "120 / 300". Fica só o PRÊMIO, que
+    // é o que o público quer — o quanto falta está na barra e na linha de baixo.
     const card = el('div', 'money-card card-goal');
     const head = el('div', 'money-head');
     head.append(
       el('span', 'money-ico', '🎯'),
-      el('span', 'money-title', `META: ${fmt(target)} moedas para ${step.label}`)
+      el('span', 'money-title', `META: ${step.label}`)
     );
     card.appendChild(head);
 
@@ -234,10 +237,12 @@ export function createGoals(container, opts = {}) {
     bar.append(fill, txt);
     card.appendChild(bar);
 
+    // [compacto] A chamada tinha 58 caracteres e listava três presentes que o carrossel já ensina
+    // um a um no cartão de dica. Curta, ela cabe grande e diz a única coisa acionável: falta X.
     card.appendChild(el('div', 'money-sub',
       left > 0
-        ? `Faltam ${fmt(left)} moedas de HERÓIS 😇 — mande GG, Tsuru ou Galáxia!`
-        : 'Meta cheia! O bônus vai entrar no jogo…'));
+        ? `Faltam ${fmt(left)} 🪙 dos HERÓIS 😇`
+        : 'META CHEIA! 🎉'));
     return card;
   }
 
@@ -246,20 +251,25 @@ export function createGoals(container, opts = {}) {
     const head = el('div', 'money-head');
     // [persist] Este é o RANKING DA LIVE: moedas totais desde o começo da transmissão. Nunca
     // zera de rodada em rodada (quem zera é a barra de duelo do HUD).
+    // [compacto] O subtítulo "moedas de toda a live 🪙" (12px, o menor texto do cartão) era pura
+    // redundância: o título já diz "DA LIVE" e cada linha já mostra o 🪙. Cortado.
     head.append(el('span', 'money-ico', '🏆'), el('span', 'money-title', 'RANKING DA LIVE'));
     card.appendChild(head);
-    card.appendChild(el('div', 'money-scope', 'moedas de toda a live 🪙'));
 
     const top = (state.overallTop.length ? state.overallTop : [...state.heroTop, ...state.villainTop]
       .sort((a, b) => num(b.coins) - num(a.coins))).slice(0, 3);
 
+    // [compacto] O ranking mantém o TOP 3 (o 2º e o 3º são o que fazem o 1º ser disputado), mas
+    // deixa de ser três linhas iguais e miúdas: o líder ganha a classe `rank-lead` para o CSS
+    // poder dar a ele foto e número BEM maiores, e o 2º/3º ficam como coadjuvantes. Assim cabe
+    // um nome grande de verdade na faixa sem perder a disputa.
     const list = el('ol', 'rank-list');
     if (!top.length) {
-      list.appendChild(el('li', 'rank-empty', 'Seja o primeiro do ranking! 🎁'));
+      list.appendChild(el('li', 'rank-empty', 'Seja o primeiro! 🎁'));
     } else {
       const medals = ['🥇', '🥈', '🥉'];
       top.forEach((g, i) => {
-        const li = el('li', 'rank-row r' + (i + 1));
+        const li = el('li', 'rank-row r' + (i + 1) + (i === 0 ? ' rank-lead' : ''));
         li.append(
           el('span', 'rank-medal', medals[i] || String(i + 1)),
           avatarNode(g, 'gl-avatar rank-avatar'),
@@ -276,10 +286,12 @@ export function createGoals(container, opts = {}) {
   function cardCta() {
     const tip = CTA_TIPS[state.ctaIndex % CTA_TIPS.length];
     state.ctaIndex += CTA_ROTATE_EVERY;
+    // [compacto] Este cartão herdou o trabalho da legenda de presentes que saiu do HUD (aquela
+    // de 13px com 4 itens espremidos). Aqui a MESMA informação aparece uma dica por vez e pode
+    // ocupar a largura toda — que é o único jeito de ela ser legível no celular.
+    // O título "COMO JOGAR COM A GENTE" saiu: a linha "🌹 Rosa = 1 bomba na cobra" já se explica
+    // sozinha, e o cabeçalho só empurrava a dica para uma fonte menor.
     const card = el('div', 'money-card card-cta team-' + tip.team);
-    const head = el('div', 'money-head');
-    head.append(el('span', 'money-ico', '💡'), el('span', 'money-title', 'COMO JOGAR COM A GENTE'));
-    card.appendChild(head);
 
     const line = el('div', 'cta-line');
     line.append(
@@ -291,8 +303,8 @@ export function createGoals(container, opts = {}) {
     card.appendChild(line);
     card.appendChild(el('div', 'money-sub',
       tip.team === 'villain'
-        ? '😈 Time VILÃO — atrapalhe a cobra!'
-        : '😇 Time HERÓI — salve a cobra!'));
+        ? '😈 atrapalhe a cobra!'
+        : '😇 salve a cobra!'));
     return card;
   }
 
@@ -308,7 +320,9 @@ export function createGoals(container, opts = {}) {
     const head = el('div', 'money-head');
     head.append(el('span', 'money-ico', '⚔️'), el('span', 'money-title', 'DUELO: QUEM VENCE?'));
     card.appendChild(head);
-    card.appendChild(el('div', 'money-scope', perRound ? 'só desta rodada ⏱' : 'moedas de toda a live 🪙'));
+    // [compacto] O subtítulo de escopo ("só desta rodada ⏱") saiu: em 12px ninguém lia, e a
+    // regra de quando o duelo zera não muda o que o espectador faz — ele manda presente para o
+    // time dele de qualquer jeito. A barra com os dois números já conta a história.
 
     const bar = el('div', 'duel-bar');
     const fv = el('div', 'duel-fill villain');
@@ -442,14 +456,15 @@ export function createGoals(container, opts = {}) {
 
   function showRecordBadge() {
     if (!state.record) return;
+    // [compacto] Eram 6 textos numa tira só ("🔥 MAIOR PRESENTE DA LIVE: · foto · Fulano · — ·
+    // Rosa · 🪙 30 mil"). O nome do presente e o traço saíram: quem manda presente quer ver o
+    // PRÓPRIO NOME grande na tela, e o valor é a prova social. O rótulo encurtou para caber.
     clear(badge);
     badge.append(
       el('span', 'badge-ico', '🔥'),
-      el('span', 'badge-txt', 'MAIOR PRESENTE DA LIVE:'),
+      el('span', 'badge-txt', 'MAIOR DA LIVE'),
       avatarNode(state.record, 'gl-avatar badge-avatar'),
       el('b', 'badge-nick', truncate(state.record.nickname, 14)),
-      el('span', 'badge-sep', '—'),
-      el('span', 'badge-gift', truncate(state.record.giftName, 16)),
       el('span', 'badge-coins num', `🪙 ${fmtCompact(state.record.coins)}`)
     );
     badge.classList.remove('hidden');

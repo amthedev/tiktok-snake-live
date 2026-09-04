@@ -62,11 +62,23 @@ export class LeaderOrb {
     this.avatarTex = canvasTexture(this.avatarCanvas);
     this.avatarMat = new THREE.SpriteMaterial({ map: this.avatarTex, transparent: true, depthWrite: false, depthTest: false });
     this.avatarSprite = new THREE.Sprite(this.avatarMat);
-    this.avatarSprite.scale.set(0.7, 0.7, 1);
+    // [celular] 0.7 → 1.0: o orbe perdeu a legenda (abaixo) e passou a ser um PICTOGRAMA — o rosto
+    // do líder marcando a cobra. Um pictograma sobrevive à compressão do TikTok; uma letra de 8 px
+    // não. Maior para continuar reconhecível no celular.
+    this.avatarSprite.scale.set(1.0, 1.0, 1);
     this.avatarSprite.renderOrder = 24;
     this.group.add(this.avatarSprite);
 
-    // Label sprite beneath.
+    // [celular] LEGENDA REMOVIDA DA CENA. Medido no palco e normalizado para 1080 de largura (o
+    // formato da live), este sprite desenhava as moedas a 11,3 px e o apelido a 7,9 px — de longe o
+    // menor texto do overlay, menos da metade do piso de 22 px. Ele escapou da auditoria dos outros
+    // dois agentes porque é WebGL, não DOM: nenhuma varredura de CSS o enxerga.
+    // Aumentá-lo até 22 px exigiria ~2,8× de escala, criando um cartão gigante perseguindo a cobra
+    // pelo meio do tabuleiro — exatamente o oposto de "o tabuleiro é a estrela".
+    // A informação NÃO se perdeu: o painel RANKING DA LIVE mostra o mesmo líder (apelido + moedas)
+    // a 30 px, na faixa de monetização, onde ele pertence. Aqui fica só o rosto.
+    // O canvas e a textura continuam existindo (setLeader/_drawLabel seguem funcionando e são
+    // baratos) — apenas nada é adicionado ao grupo, então nada é desenhado sobre o tabuleiro.
     this.labelCanvas = makeCanvas(512, 176);
     this.labelTex = canvasTexture(this.labelCanvas);
     this.labelMat = new THREE.SpriteMaterial({ map: this.labelTex, transparent: true, depthWrite: false, depthTest: false });
@@ -74,7 +86,7 @@ export class LeaderOrb {
     this.labelSprite.scale.set(2.9, 2.9 * (176 / 512), 1);
     this.labelSprite.position.y = -0.98;
     this.labelSprite.renderOrder = 24;
-    this.group.add(this.labelSprite);
+    this.labelSprite.visible = false;
 
     // Soft light so the orb tints the board a little.
     this.light = quality === 'low' ? null : new THREE.PointLight(0xfbbf24, 0.9, 4, 2);
@@ -206,6 +218,9 @@ export class LeaderOrb {
   dispose() {
     disposeObject(this.group);
     this.avatarTex.dispose();
+    // [celular] labelSprite não está mais no grupo (ver construtor), então disposeObject() não
+    // alcança o material dele — descarta-se aqui à mão para não vazar.
+    this.labelMat.dispose();
     this.labelTex.dispose();
   }
 }

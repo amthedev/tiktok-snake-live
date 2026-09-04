@@ -10,11 +10,21 @@ import * as THREE from 'three';
 export const FOV = 36;
 export const ELEVATION_DEG = 55;
 // Single format by design (client request 2026-09-03): TikTok LIVE portrait 9:16.
-// [layout] The board's SAFE STRIP is 20–72 % of the stage (--zone-head → --zone-board in
-// overlay.css). The VILÕES × HERÓIS battle panel occupies the last 8 % of it (.band-leader, 64–72 %),
-// so the camera frames the board into 20–64 % — otherwise the panel would sit on top of the board's
-// bottom rows. Keep in sync with overlay.css's --zone-* map and .band-leader's height.
-export const BAND_PORTRAIT = [0.20, 0.64];
+// [layout] The board's SAFE STRIP is 24–72 % of the stage (--zone-head → --zone-board in
+// overlay.css), and the camera now uses ALL of it. Keep in sync with overlay.css's --zone-* map.
+//
+// [celular] Reequilíbrio 2026-09-04. Duas mudanças, e a segunda é a que importa:
+//   1. O topo subiu 0.20 → 0.24: o cabeçalho precisou de 4 % a mais para caber texto legível
+//      no celular (piso de ~22 px equivalentes a 1080).
+//   2. A base subiu 0.64 → 0.72: o painel VILÕES × HERÓIS SAIU de cima do tabuleiro e foi para a
+//      faixa de monetização (72–83 %), onde ele conceitualmente pertence.
+//
+// Por que (2) foi necessário: MEDIDO, o board é limitado pela ALTURA da faixa, não pela largura.
+// Com o painel ainda por cima e o texto no tamanho legível, a faixa caía para 24–60 % e a
+// projeção encolhia de 92 % para 78 % da largura do palco — 15 % menor. O tabuleiro é o
+// espetáculo; quem cedeu foi o painel. Com 24–72 % a projeção volta a ser limitada pela LARGURA
+// (WIDTH_FRACTION = 0.92) e sobram ~41 px de folga vertical: tamanho idêntico ao layout original.
+export const BAND_PORTRAIT = [0.24, 0.72];
 export const BAND_LANDSCAPE = BAND_PORTRAIT;
 export const WIDTH_FRACTION = 0.92;
 

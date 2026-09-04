@@ -12,19 +12,20 @@
  *
  * ZONA SEGURA DO TIKTOK LIVE — vertical map, as fractions of the STAGE (not the window):
  *   0–11 %   ZONA MORTA: covered by TikTok's own app bar / profile row. Decoration only.
- *  11–20 %   compact header: VITÓRIAS × DERROTAS, round, TikTok status, viewers, progress
- *  20–72 %   BOARD (the canvas) — the star. Only transient DOM (gift card, toasts, countdown,
+ *  11–24 %   cabeçalho: VITÓRIAS × DERROTAS, sequência, status da rodada, progresso
+ *  24–72 %   BOARD (the canvas) — the star. Only transient DOM (gift card, toasts, countdown,
  *            round end), and never over the centre of the board.
- *  72–79 %   monetization strip (#hud-money) — reserved for ui/goals.js + ui/alerts.js
- *  79–100 %  ZONA MORTA: covered by TikTok's comments, buttons and gift bar. Nothing essential.
+ *  72–83 %   monetization strip (#hud-money) — reserved for ui/goals.js + ui/alerts.js
+ *  83–100 %  ZONA MORTA: covered by TikTok's comments, buttons and gift bar. Nothing essential.
  * Horizontally, textual content keeps a ~5 % margin on each side (--pad-x).
  *
  * Chat: the old 86–100 % chat band sat entirely under TikTok's native chat — wasted pixels. It is
  * now a narrow, low-opacity left rail inside the board band (see .band-chat), so new viewers still
  * see their name appear without covering the game.
  *
- * Root font-size ≈ 1 % of stage height → ≈ 19 px on a 1080×1920 stage, so 0.9rem ≈ 17 px (legible
- * after TikTok's compression). System fonts only (offline OBS).
+ * Root font-size ≈ 1 % of stage height → ≈ 19,2 px on a 1080×1920 stage. Tamanhos de texto NÃO se
+ * escrevem à mão: use a escala --fs-* declarada em :root, cujo menor degrau (--fs-mini ≈ 23 px
+ * equivalentes a 1080) é o piso de legibilidade no celular. System fonts only (offline OBS).
  */
 
 :root {
@@ -54,14 +55,46 @@
   --stage-w: calc(var(--stage-h) * 9 / 16);
   --u: calc(var(--stage-h) / 100);
 
-  /* [layout] TikTok LIVE safe-area map, as % of the stage height. Change them here only. */
+  /* [layout] TikTok LIVE safe-area map, as % of the stage height. Change them here only.
+   *
+   * [celular] REEQUILÍBRIO 2026-09-04. O mapa antigo (11/20/72/79) deixava 21 % da altura VAZIA
+   * embaixo e espremia todo o texto em 9 % de cabeçalho + 7 % de monetização. Como o piso de
+   * legibilidade é ~22 px equivalentes a 1080 (compressão do TikTok vista no celular), texto grande
+   * simplesmente NÃO CABIA — daí os 13–16 px medidos. A correção é orçamentária, não estética:
+   *   cabeçalho  9 % → 13 %  (11 → 24)
+   *   tabuleiro 52 % → 48 %  (24 → 72)  — continua sendo o maior bloco, de longe
+   *   monetização 7 % → 11 % (72 → 83)
+   *   zona morta de baixo 21 % → 17 % — segue folgada para a barra de presentes do TikTok
+   * Os 4 % que o tabuleiro cede são imperceptíveis (o board é quadrado, limitado pela LARGURA:
+   * medido, a projeção nem encosta no novo limite vertical). Os 4 % da zona morta eram lixo. */
   --zone-dead-top: 11;    /* 0 → 11 %  : TikTok app bar / profile */
-  --zone-head: 20;        /* 11 → 20 % : compact header */
-  --zone-board: 72;       /* 20 → 72 % : the board */
-  --zone-money: 79;       /* 72 → 79 % : monetization strip */
-  /* 79 → 100 % : TikTok comments / buttons / gift bar — dead zone */
+  --zone-head: 24;        /* 11 → 24 % : cabeçalho (placar + status + progresso) */
+  --zone-board: 72;       /* 24 → 72 % : the board */
+  --zone-money: 83;       /* 72 → 83 % : monetization strip */
+  /* 83 → 100 % : TikTok comments / buttons / gift bar — dead zone */
 
   --pad-x: 5cqw;          /* ~5 % side margin for textual content */
+
+  /* [celular] ESCALA TIPOGRÁFICA — piso duro de legibilidade -----------------------------------
+   * Unidade: 1rem == 1 % da ALTURA do palco. Num palco 1080×1920 → 1rem == 19,2 px, e é nessa
+   * régua que os alvos abaixo foram calculados (px equivalentes a 1080 de largura, que é o formato
+   * da live). Referência medida em vídeo comprimido do TikTok no celular: abaixo de ~22 px o texto
+   * vira borrão. NADA visível pode usar menos que --fs-mini.
+   *
+   *   --fs-hero    2.40rem ≈ 46 px  números de destaque (placar, moedas do líder)
+   *   --fs-titulo  1.77rem ≈ 34 px  títulos e nomes em destaque
+   *   --fs-nome    1.56rem ≈ 30 px  nomes e rótulos de destaque
+   *   --fs-corpo   1.36rem ≈ 26 px  corpo e valores secundários
+   *   --fs-mini    1.20rem ≈ 23 px  PISO. O menor texto que pode existir na tela.
+   *
+   * Regra de manutenção: se algo não couber no seu tamanho, a informação SAI ou encurta — nunca
+   * se resolve baixando o font-size. Ícones/emoji podem usar `em` (relativos ao texto que
+   * acompanham) porque um pictograma sobrevive melhor à compressão que uma letra. */
+  --fs-hero: 2.4rem;
+  --fs-titulo: 1.77rem;
+  --fs-nome: 1.56rem;
+  --fs-corpo: 1.36rem;
+  --fs-mini: 1.2rem;
 }
 
 html {
@@ -178,28 +211,38 @@ html, body {
 .band-score {
   top: calc(var(--zone-dead-top) * var(--u));
   height: calc((var(--zone-head) - var(--zone-dead-top)) * var(--u));
-  padding: 0 var(--pad-x);
+  padding: calc(0.4 * var(--u)) var(--pad-x);
   flex-direction: column;
   justify-content: space-evenly;
-  gap: 0;
+  gap: calc(0.4 * var(--u));
 }
 .band-board {
   top: calc(var(--zone-head) * var(--u));
   height: calc((var(--zone-board) - var(--zone-head)) * var(--u));
 }
+/* [celular] O PAINEL DO DUELO SAIU DE CIMA DO TABULEIRO.
+ * Ele vivia dentro da faixa do board (64–72 %), o que obrigava a câmera a terminar em 64 % e
+ * ESPREMIA o 3D. Medido: com o texto no tamanho legível o painel precisava de 12 % e a câmera
+ * caía para 0.60 — o tabuleiro encolhia de 92 % para 78 % da largura do palco (-15 %). Como o
+ * tabuleiro é O ESPETÁCULO, quem se mudou foi o painel: ele é conteúdo de MONETIZAÇÃO (nomes de
+ * quem mandou presente) e agora divide a faixa 72–83 % com as metas, empilhado.
+ * Resultado: a câmera volta a enquadrar 24–72 %, o tabuleiro volta aos 92 % de largura (idêntico
+ * ao layout antigo) e o texto continua grande. */
 .band-leader {
-  top: calc((var(--zone-board) - 8) * var(--u));
-  height: calc(8 * var(--u));
-  padding: calc(0.3 * var(--u)) var(--pad-x);
+  top: calc(var(--zone-board) * var(--u));
+  height: calc(4.6 * var(--u));
+  padding: 0 var(--pad-x);
   flex-direction: column;
   justify-content: center;
-  gap: calc(0.3 * var(--u));
+  gap: calc(0.2 * var(--u));
 }
-/* [layout] Reserved, styled, empty. The content agent fills #hud-money. */
+/* [layout] Reserved, styled, empty. The content agent fills #hud-money.
+   [celular] Agora ocupa a METADE DE BAIXO da faixa de monetização (o duelo ficou com a de cima),
+   o que a mantém dentro de 72–83 % sem nunca tocar o tabuleiro. */
 .band-money {
-  top: calc(var(--zone-board) * var(--u));
-  height: calc((var(--zone-money) - var(--zone-board)) * var(--u));
-  padding: calc(0.4 * var(--u)) var(--pad-x);
+  top: calc((var(--zone-board) + 4.6) * var(--u));
+  height: calc((var(--zone-money) - var(--zone-board) - 4.6) * var(--u));
+  padding: 0 var(--pad-x);
   align-items: center;
   justify-content: center;
   gap: calc(0.6 * var(--u));
@@ -219,9 +262,12 @@ html, body {
 /* [layout] Chat rail: bottom-left of the board band, inside the safe area, deliberately quiet. */
 .band-chat {
   top: calc(var(--zone-head) * var(--u));
-  height: calc((var(--zone-board) - var(--zone-head) - 9) * var(--u));
+  /* [celular] O painel do duelo saiu da faixa do tabuleiro, então o trilho de chat pode usar quase
+     toda ela; guarda 2 % de respiro para não encostar na borda de baixo do board. */
+  height: calc((var(--zone-board) - var(--zone-head) - 2) * var(--u));
   right: auto;
-  width: 44cqw;
+  /* Mais largo que os 44cqw antigos: o texto cresceu e o nome não pode virar "Ma…". */
+  width: 62cqw;
   padding: 0 0 calc(0.5 * var(--u)) var(--pad-x);
   align-items: flex-end;
 }
@@ -232,7 +278,10 @@ html, body {
   display: inline-flex;
   align-items: baseline;
   gap: 0.45em;
-  font-size: 1.35rem; /* [layout] dead zone: decoration, not load-bearing */
+  /* [celular] Zona morta (0–11 %): a barra do TikTok cobre isto na live. É decoração pura, então
+     NÃO entra no orçamento de legibilidade — mas também não pode ser microscópica quando a barra
+     não está lá (preview, OBS sem overlay do app). Fica em --fs-titulo. */
+  font-size: var(--fs-titulo);
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -273,7 +322,8 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  font-size: 0.95rem;
+  /* [celular] Mesmo sendo zona morta, nada visível fica abaixo do piso. */
+  font-size: var(--fs-mini);
   padding: 0.22em 0.75em;
   border-radius: 999px;
   background: var(--glass-bg);
@@ -297,11 +347,14 @@ html, body {
 .pill-tiktok[data-status="disconnected"] .pill-text { color: var(--muted); }
 @keyframes dot-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
-.pill-ws { font-size: 0.8rem; padding-inline: 0.6em; }
+/* [celular] O pill do WebSocket é DEBUG puro (saúde da conexão com o próprio servidor): não
+   interessa a ninguém que assiste. Some por completo em OBS/live; no preview local fica, mas
+   respeitando o piso de legibilidade como todo o resto. */
+.pill-ws { font-size: var(--fs-mini); padding-inline: 0.6em; }
 .pill-ws .pill-text { color: var(--muted); }
 .pill-ws.on .pill-dot { background: var(--emerald); color: var(--emerald); }
 .pill-ws.off .pill-dot { background: #ef4444; color: #ef4444; animation: dot-blink 1s ease-in-out infinite; }
-body.obs .pill-ws.on { display: none; }
+body.obs .pill-ws { display: none; }
 
 .pill-likes { overflow: visible; }
 .like-burst {
@@ -329,40 +382,57 @@ body.obs .pill-ws.on { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.2rem;
-  padding: 0.2rem 1.2rem;
-  min-height: 3.2rem;
+  gap: 0.9rem;
+  padding: 0.35rem 0.9rem;
+  min-height: 4.4rem;
 }
 .score-col {
   display: flex;
   flex-direction: column;
   align-items: center;
   line-height: 1;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 .score-col .lbl {
-  /* [revisão] VITÓRIAS / DERROTAS: 0.72rem = ~13,8 px equivalentes a 1080. Sobe para ~19 px.
-     O letter-spacing cai um pouco para o rótulo continuar cabendo na mesma linha. */
-  font-size: 0.98rem;
-  letter-spacing: 0.1em;
+  /* [celular] VITÓRIAS / DERROTAS eram 0.98rem ≈ 19 px equivalentes a 1080 — abaixo do piso.
+     Vão para --fs-mini (≈23 px) e o letter-spacing encolhe para o rótulo caber na linha. */
+  font-size: var(--fs-mini);
+  letter-spacing: 0.04em;
   font-weight: 800;
   color: var(--muted);
 }
-.score-col .num.big { font-size: 2.1rem; line-height: 1; }
+/* [celular] O placar é o número que a pessoa lê de relance: tamanho de herói. */
+.score-col .num.big { font-size: var(--fs-hero); line-height: 1; }
 .score-col.win .num.big  { color: var(--emerald); text-shadow: 0 0 0.6rem rgba(52, 211, 153, 0.55), 0 2px 2px #000; }
 .score-col.loss .num.big { color: var(--rose);    text-shadow: 0 0 0.6rem rgba(251, 113, 133, 0.55), 0 2px 2px #000; }
-.score-x { font-size: 1.5rem; color: var(--muted); font-weight: 900; }
+.score-x { font-size: var(--fs-nome); color: var(--muted); font-weight: 900; }
+/* [celular] O selo "🔥 N seguidas" (hud.js) não tinha NENHUMA regra: herdava o tamanho do body e
+   media 19,2 px equivalentes a 1080 — abaixo do piso de 22 px. Escapou das duas auditorias porque
+   só entra no DOM a partir de 2 vitórias seguidas, e não aparece no estado de repouso.
+   Vai para --fs-mini (≈23 px) e ganha um fundo dourado discreto: é uma conquista, não um rótulo. */
+.streak-badge {
+  font-size: var(--fs-mini);
+  font-weight: 900;
+  color: var(--gold);
+  white-space: nowrap;
+  padding: 0.15rem 0.55rem;
+  border-radius: 1rem;
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+}
 .score-side {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.3rem;
-  margin-left: 0.6rem;
-  padding-left: 1rem;
+  gap: 0.35rem;
+  margin-left: 0.4rem;
+  padding-left: 0.8rem;
   border-left: 1px solid var(--glass-border);
 }
-.streak { display: flex; align-items: baseline; gap: 0.5em; font-size: 0.9rem; }
-.streak .lbl { font-size: 0.72rem; letter-spacing: 0.12em; color: var(--muted); }
+/* [celular] SEQUÊNCIA: o rótulo estava em 0.72rem ≈ 14 px — ilegível. Rótulo e valor sobem para
+   o piso e para o corpo, e o letter-spacing cede o espaço necessário. */
+.streak { display: flex; align-items: baseline; gap: 0.45em; font-size: var(--fs-corpo); }
+.streak .lbl { font-size: var(--fs-corpo); letter-spacing: 0.02em; color: var(--muted); }  /* piso de 22px no celular */
 .streak.pos .num { color: var(--gold); }
 .streak.neg .num { color: var(--rose); }
 .history { display: flex; gap: 0.3rem; }
@@ -370,9 +440,10 @@ body.obs .pill-ws.on { display: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem; height: 1.35rem;
-  border-radius: 0.35rem;
-  font-size: 0.85rem;
+  /* [celular] O quadradinho cresce junto com a letra que ele contém. */
+  width: 1.75rem; height: 1.75rem;
+  border-radius: 0.4rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
   text-shadow: none;
   color: #04110b;
@@ -385,10 +456,12 @@ body.obs .pill-ws.on { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.85rem;
-  padding: 0.25rem 0.8rem;
-  min-height: 2.3rem;
-  font-size: 0.95rem;
+  /* [celular] O gap encolhe para financiar o texto maior: com 5–6 stats na linha, cada 0.1rem de
+     gap custa mais que o próprio número. */
+  gap: 0.6rem;
+  padding: 0.3rem 0.6rem;
+  min-height: 2.9rem;
+  font-size: var(--fs-corpo);
 }
 .stat-mini { display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; }
 /* The length stat is the snake's life: red pulse while one more bomb would kill it. */
@@ -399,7 +472,8 @@ body.obs .pill-ws.on { display: none; }
 }
 @keyframes danger-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 .stat-ico { font-size: 0.95em; }
-.stat-mini .num { font-size: 1.05rem; }
+/* [celular] Os valores da linha de status são o corpo do cabeçalho: --fs-corpo (≈26 px). */
+.stat-mini .num { font-size: var(--fs-corpo); }
 .stat-mini .num.bombs { color: var(--gold); }
 .stat-mini .num.apples { color: var(--emerald); }
 /* Shield pill: visible only while snapshot.shieldLeft > 0. */
@@ -418,7 +492,8 @@ body.obs .pill-ws.on { display: none; }
 
 .progress {
   position: relative;
-  height: 1.55rem;
+  /* [celular] A altura da barra acompanha o texto que vive dentro dela (--fs-corpo + folga). */
+  height: 2.1rem;
   border-radius: 999px;
   background: rgba(8, 12, 26, 0.7);
   border: 1px solid var(--glass-border);
@@ -444,9 +519,11 @@ body.obs .pill-ws.on { display: none; }
 .progress-text {
   position: relative;
   text-align: center;
-  font-size: 0.85rem;
-  line-height: 1.55rem;
-  letter-spacing: 0.04em;
+  /* [celular] 0.85rem ≈ 16 px equivalentes a 1080 → sobe para o corpo (≈26 px). O line-height
+     acompanha a nova altura da barra para o texto continuar centrado verticalmente. */
+  font-size: var(--fs-corpo);
+  line-height: 2.1rem;
+  letter-spacing: 0.02em;
   font-weight: 800;
 }
 
@@ -456,7 +533,8 @@ body.obs .pill-ws.on { display: none; }
   position: absolute;
   left: var(--pad-x);
   top: calc(1.2 * var(--u));
-  width: min(52cqw, 22rem);
+  /* [celular] Mais largo (era 52cqw): o nome do doador subiu para ≈30 px e não pode ser cortado. */
+  width: min(70cqw, 30rem);
 }
 .gift-card {
   position: relative;
@@ -518,9 +596,10 @@ body.obs .pill-ws.on { display: none; }
   box-shadow: 0 0 2.2rem rgba(251, 191, 36, 0.55), 0 0 3.5rem rgba(167, 139, 250, 0.45), var(--shadow);
   animation: card-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both, supreme-border 2.5s linear infinite;
 }
-.gift-card.tier-supreme .gift-who .gift-nick { font-size: 1.15rem; }
-.gift-card.tier-supreme .gift-img { width: 3rem; height: 3rem; font-size: 2.1rem; }
-.gift-card.tier-supreme .gift-count { font-size: 1.4rem; }
+/* Presente supremo: tudo um degrau acima do card normal. */
+.gift-card.tier-supreme .gift-who .gift-nick { font-size: var(--fs-titulo); }
+.gift-card.tier-supreme .gift-img { width: 3.4rem; height: 3.4rem; font-size: 2.4rem; }
+.gift-card.tier-supreme .gift-count { font-size: var(--fs-hero); }
 @keyframes supreme-border {
   0%   { background-position: 0 0, 0% 50%; }
   100% { background-position: 0 0, 300% 50%; }
@@ -555,12 +634,14 @@ body.obs .pill-ws.on { display: none; }
 }
 .gift-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
 .gift-who { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
-.gift-who .gift-nick { font-size: 1.05rem; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* [celular] O card de presente é a recompensa social de quem doou: o NOME é o que a pessoa quer
+   ver na tela, então vai para destaque de nome (≈30 px). */
+.gift-who .gift-nick { font-size: var(--fs-nome); font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .team-badge {
   flex: none;
-  font-size: 0.66rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.02em;
   line-height: 1.3;
   padding: 0.06em 0.55em;
   border-radius: 0.45em;
@@ -568,10 +649,10 @@ body.obs .pill-ws.on { display: none; }
 }
 .team-badge.villain { background: var(--rose); color: #38040e; box-shadow: 0 0 0.5rem rgba(251, 113, 133, 0.7); }
 .team-badge.hero { background: var(--emerald); color: #04110b; box-shadow: 0 0 0.5rem rgba(52, 211, 153, 0.7); }
-.gift-what { display: flex; align-items: baseline; gap: 0.3em; font-size: 0.9rem; color: var(--muted); white-space: nowrap; min-width: 0; }
+.gift-what { display: flex; align-items: baseline; gap: 0.3em; font-size: var(--fs-mini); color: var(--muted); white-space: nowrap; min-width: 0; }
 .gift-what .gift-name { color: var(--gold); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.gift-what .gift-coins { flex: none; color: var(--gold); font-size: 0.95em; }
-.gift-effect { font-size: 0.88rem; font-weight: 800; color: #fde68a; }
+.gift-what .gift-coins { flex: none; color: var(--gold); font-size: 1em; }
+.gift-effect { font-size: var(--fs-mini); font-weight: 800; color: #fde68a; }
 .gift-card.team-villain .gift-effect { color: #fecdd3; }
 .gift-card.team-hero .gift-effect { color: #a7f3d0; }
 .gift-right { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
@@ -583,7 +664,7 @@ body.obs .pill-ws.on { display: none; }
 }
 .gift-img img { width: 100%; height: 100%; object-fit: contain; }
 .gift-count {
-  font-size: 1.25rem;
+  font-size: var(--fs-titulo);
   color: var(--gold);
   text-shadow: 0 0 0.5rem rgba(251, 191, 36, 0.8), 0 1px 1px #000;
 }
@@ -605,7 +686,8 @@ body.obs .pill-ws.on { display: none; }
 .avatar-initials {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.85rem; font-weight: 900; color: #06101a; text-shadow: none;
+  /* [celular] Iniciais são texto visível quando não há foto: piso vale aqui também. */
+  font-size: var(--fs-mini); font-weight: 900; color: #06101a; text-shadow: none;
 }
 .gift-avatar { width: 3rem; height: 3rem; border-color: var(--gold); }
 .gift-card.team-villain .gift-avatar { border-color: var(--rose); }
@@ -614,19 +696,28 @@ body.obs .pill-ws.on { display: none; }
 .toasts {
   position: absolute;
   right: var(--pad-x);
-  top: calc(1.2 * var(--u));
+  /* [celular] COLISÃO CORRIGIDA. Os toasts ficavam em `top: 1.2u`, o MESMO topo do .gift-slot.
+     Como o cartão de presente ocupa até 70cqw à esquerda (112 % no tier-supreme) e os toasts até
+     58cqw à direita, 70 + 58 = 128 % > 100 %: sempre que chegava um presente junto com um ataque
+     — ou seja, exatamente durante uma rajada — os dois se sobrepunham e nenhum dos dois dava para
+     ler. Medido na rajada de 20 presentes: cartão "PRESENTE SUPREMO" ilegível sob dois toasts.
+     Descendo a coluna para 9u, os toasts passam a ficar ABAIXO do cartão, nunca em cima dele.
+     9u ≈ altura do cartão normal (≈7,5u) + folga; o supremo é mais alto e some em ~4 s, então no
+     pior caso o toast encosta na base do cartão em vez de cobrir o texto. */
+  top: calc(9 * var(--u));
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.4rem;
-  max-width: 42cqw;
+  /* Mais largo (era 42cqw) para acomodar o texto no piso de legibilidade sem quebrar em 4 linhas. */
+  max-width: 58cqw;
 }
 .toast {
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.9rem;
+  padding: 0.45rem 0.85rem;
+  font-size: var(--fs-mini);
   border-radius: 1.2rem;
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border);
@@ -644,8 +735,11 @@ body.obs .pill-ws.on { display: none; }
 .toast.error   { border-color: rgba(239, 68, 68, 0.9); background: rgba(80, 8, 16, 0.85); }
 .toast.social  { border-color: rgba(96, 165, 250, 0.7); }
 .toast.social.share { border-color: rgba(167, 139, 250, 0.8); }
-.toast-avatar { width: 1.6rem; height: 1.6rem; }
-@keyframes toast-in  { from { opacity: 0; transform: translateX(40%); } to { opacity: 1; transform: none; } }
+.toast-avatar { width: 2rem; height: 2rem; }
+/* [celular] A entrada era translateX(40%): durante os 0,35 s da animação o toast ficava 40 % da
+   própria largura FORA do palco (medido: borda direita em 110 % da largura), e #safe { overflow:
+   hidden } cortava o texto. Entrar por 12 % preserva o movimento lateral sem nunca vazar. */
+@keyframes toast-in  { from { opacity: 0; transform: translateX(12%); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(-40%); } }
 
 /* Overlays (countdown / round end) --------------------------------------------- */
@@ -675,8 +769,8 @@ body.obs .pill-ws.on { display: none; }
 }
 @keyframes box-in { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
 .cd-title {
-  font-size: 1.6rem;
-  letter-spacing: 0.2em;
+  font-size: var(--fs-titulo);
+  letter-spacing: 0.12em;
   font-weight: 900;
   color: var(--cyan);
   text-shadow: 0 0 0.8rem rgba(34, 211, 238, 0.8), 0 2px 2px #000;
@@ -690,7 +784,7 @@ body.obs .pill-ws.on { display: none; }
 .cd-num.pop { animation: cd-pop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1); }
 .cd-num.go { color: var(--emerald); text-shadow: 0 0 1.4rem rgba(52, 211, 153, 0.9), 0 3px 3px #000; font-size: 4.2rem; }
 @keyframes cd-pop { 0% { transform: scale(1.8); opacity: 0.2; } 100% { transform: scale(1); opacity: 1; } }
-.cd-hint { font-size: 0.85rem; color: var(--muted); max-width: 22rem; }
+.cd-hint { font-size: var(--fs-mini); color: var(--muted); max-width: 28rem; }
 
 .roundend.win .re-box  { border-color: rgba(251, 191, 36, 0.8); box-shadow: 0 0 3rem rgba(251, 191, 36, 0.45), var(--shadow); }
 .roundend.loss .re-box { border-color: rgba(251, 113, 133, 0.8); box-shadow: 0 0 3rem rgba(251, 113, 133, 0.4), var(--shadow); animation: box-in 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both, shake 0.5s ease-out 0.1s; }
@@ -702,20 +796,20 @@ body.obs .pill-ws.on { display: none; }
 }
 .roundend.win .re-title  { color: var(--gold); text-shadow: 0 0 1.4rem rgba(251, 191, 36, 0.9), 0 3px 3px #000; }
 .roundend.loss .re-title { color: var(--rose); text-shadow: 0 0 1.4rem rgba(251, 113, 133, 0.9), 0 3px 3px #000; }
-.re-sub { font-size: 0.95rem; color: var(--muted); }
+.re-sub { font-size: var(--fs-corpo); color: var(--muted); }
 .re-grid {
   display: grid;
   grid-template-columns: repeat(4, auto);
-  gap: 0.4rem 1.2rem;
+  gap: 0.4rem 0.9rem;
   margin: 0.4rem 0;
 }
 .re-cell { display: flex; flex-direction: column; align-items: center; gap: 0.05rem; }
-.re-ico { font-size: 1.1rem; }
-.re-val { font-size: 1.4rem; line-height: 1; }
-.re-lbl { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-.re-score { font-size: 0.95rem; letter-spacing: 0.08em; color: var(--cyan); }
-.re-next { font-size: 0.95rem; color: var(--muted); }
-.re-next .num { color: #fff; font-size: 1.15rem; }
+.re-ico { font-size: var(--fs-corpo); }
+.re-val { font-size: var(--fs-titulo); line-height: 1; }
+.re-lbl { font-size: var(--fs-mini); letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
+.re-score { font-size: var(--fs-corpo); letter-spacing: 0.04em; color: var(--cyan); }
+.re-next { font-size: var(--fs-corpo); color: var(--muted); }
+.re-next .num { color: #fff; font-size: var(--fs-nome); }
 @keyframes shake {
   10%, 90% { transform: translateX(-0.2rem); }
   20%, 80% { transform: translateX(0.3rem); }
@@ -745,11 +839,15 @@ body.obs .pill-ws.on { display: none; }
 }
 
 /* Leader band: VILÕES × HERÓIS battle --------------------------------------------- */
+/* [celular] O painel cabe agora em 6,2 % da altura (metade de cima da faixa de monetização), com
+   o texto todo acima do piso. Isso só fecha porque ele foi ENXUGADO: a barra de cabo-de-guerra
+   carrega os totais por dentro e as colunas de top-3 viraram uma linha por time. */
 .battle {
   display: flex;
   flex-direction: column;
-  gap: 0.16rem;
-  padding: 0.24rem 0.55rem 0.3rem;
+  gap: 0.15rem;
+  padding: 0.1rem 0.55rem 0.15rem;
+  width: 100%;
 }
 .battle-head {
   display: flex;
@@ -759,30 +857,25 @@ body.obs .pill-ws.on { display: none; }
   line-height: 1;
 }
 .battle-team {
-  font-size: 0.92rem;
+  /* [celular] Nome do time: rótulo de destaque (≈30 px). */
+  font-size: var(--fs-nome);
   font-weight: 900;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
-/* [persist] Escopo da barra: deixa claro que o duelo é DA RODADA (zera a cada rodada). */
-.battle-scope {
-  text-align: center;
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted, #94a3b8);
-  opacity: 0.9;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* [persist] Escopo da barra: dizia que o duelo é DA RODADA (zera a cada rodada).
+   [celular] REMOVIDO DA TELA. Era o menor texto do overlay inteiro (0.58rem ≈ 11 px) e é
+   exatamente a "informação desnecessária" da queixa do cliente: uma nota de rodapé explicando
+   uma barra que já se explica sozinha. No piso de legibilidade ela custaria uma linha inteira do
+   painel — linha que agora pertence aos NOMES de quem mandou presente.
+   Fica escondido por CSS (e não removido do hud.js, que é do outro agente) para não quebrar
+   nada que dependa do nó; o agente de conteúdo pode apagá-lo de vez. */
+.battle-scope { display: none; }
 .battle-team.villain { color: var(--rose); text-shadow: 0 0 0.6rem rgba(251, 113, 133, 0.6), 0 2px 2px #000; }
 .battle-team.hero { color: var(--emerald); text-shadow: 0 0 0.6rem rgba(52, 211, 153, 0.6), 0 2px 2px #000; }
 .battle-vs {
   flex: none;
-  font-size: 0.72rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
   font-style: italic;
   letter-spacing: 0.08em;
@@ -797,7 +890,8 @@ body.obs .pill-ws.on { display: none; }
 /* Tug of war: villain fills red/rose from the left, hero emerald from the right. */
 .tug {
   position: relative;
-  height: 1rem;
+  /* [celular] A barra precisa comportar o total de moedas em --fs-corpo por dentro. */
+  height: 1.9rem;
   border-radius: 999px;
   background: rgba(8, 12, 26, 0.75);
   border: 1px solid var(--glass-border);
@@ -835,9 +929,10 @@ body.obs .pill-ws.on { display: none; }
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  /* [revisão] Total de moedas de cada time: é o placar que motiva o presente seguinte.
-     0.8rem dava ~15,4 px equivalentes a 1080; sobe para ~21 px, no limite do que a barra comporta. */
-  font-size: 1.08rem;
+  /* [celular] Total de moedas de cada time: é o placar que motiva o presente seguinte. Passou de
+     1.08rem (≈21 px, ainda abaixo do piso) para --fs-corpo (≈26 px); a .tug cresceu junto para
+     comportá-lo sem cortar. */
+  font-size: var(--fs-corpo);
   font-weight: 900;
   line-height: 1;
   color: #fff;
@@ -853,6 +948,9 @@ body.obs .pill-ws.on { display: none; }
   grid-template-columns: 1fr 1fr;
   gap: 0 0.7rem;
 }
+/* [celular] Só o LÍDER de cada time aparece. Eram 3 por time (6 nomes) a ≈15 px: seis borrões que
+   ninguém lia. Um nome por time a ≈30 px é lido de relance — e é o nome no topo que faz a próxima
+   pessoa querer destronar quem está lá. Menos elementos, cada um maior. */
 .team-col {
   list-style: none;
   margin: 0;
@@ -862,6 +960,7 @@ body.obs .pill-ws.on { display: none; }
   gap: 0.11rem;
   min-width: 0;
 }
+.team-col .team-row:not(.rank-1) { display: none; }
 .team-row {
   display: flex;
   align-items: center;
@@ -882,19 +981,25 @@ body.obs .pill-ws.on { display: none; }
   background: linear-gradient(270deg, rgba(52, 211, 153, 0.32), rgba(52, 211, 153, 0.06));
   border-color: rgba(52, 211, 153, 0.6);
 }
-.team-avatar { width: 1.1rem; height: 1.1rem; border-width: 1px; }
-.team-avatar .avatar-initials { font-size: 0.55rem; }
-.team-row.rank-1 .team-avatar { width: 1.5rem; height: 1.5rem; }
-.team-row.rank-1 .team-avatar .avatar-initials { font-size: 0.7rem; }
+/* [celular] Avatares acompanham o nome ao lado. As INICIAIS dentro do círculo são texto visível,
+   então também respeitam o piso — e é por isso que o círculo precisou crescer. */
+.team-avatar { width: 1.9rem; height: 1.9rem; border-width: 1px; }
+.team-avatar .avatar-initials { font-size: var(--fs-mini); }
+.team-row.rank-1 .team-avatar { width: 2.3rem; height: 2.3rem; }
+.team-row.rank-1 .team-avatar .avatar-initials { font-size: var(--fs-mini); }
 .team-col.villain .team-row.rank-1 .team-avatar { border-color: var(--rose); box-shadow: 0 0 0.45rem rgba(251, 113, 133, 0.8); }
 .team-col.hero .team-row.rank-1 .team-avatar { border-color: var(--emerald); box-shadow: 0 0 0.45rem rgba(52, 211, 153, 0.8); }
 .crown-wrap { position: relative; flex: none; display: inline-flex; }
 .crown {
   position: absolute;
-  top: -0.5rem;
+  /* [celular] Menos saliente: no piso de legibilidade a coroa flutuando a -0.55rem estourava o
+     topo da faixa do duelo (medido 71,3 % contra o limite de 72 %) e encostava no tabuleiro. */
+  top: -0.3rem;
   left: 50%;
   transform: translateX(-50%) rotate(-14deg);
-  font-size: 0.62rem;
+  /* [celular] Pictograma decorativo sobre o avatar do líder. Mesmo não sendo texto lido, respeita
+     o piso: a regra é dura, sem exceções — e uma coroa borrada não coroa ninguém. */
+  font-size: var(--fs-mini);
   filter: drop-shadow(0 1px 1px #000);
 }
 /* [revisão] LEGIBILIDADE EM VÍDEO COMPRIMIDO.
@@ -906,15 +1011,16 @@ body.obs .pill-ws.on { display: none; }
 .team-nick {
   flex: 1;
   min-width: 0;
-  font-size: 0.98rem;
+  /* [celular] Nome do doador: nunca abaixo do piso; o líder ganha destaque de nome (≈30 px). */
+  font-size: var(--fs-mini);
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.team-row.rank-1 .team-nick { font-size: 1.12rem; font-weight: 900; }
-.team-coins { font-size: 0.95rem; font-weight: 800; white-space: nowrap; }
-.team-row.rank-1 .team-coins { font-size: 1.05rem; }
+.team-row.rank-1 .team-nick { font-size: var(--fs-nome); font-weight: 900; }
+.team-coins { font-size: var(--fs-mini); font-weight: 800; white-space: nowrap; }
+.team-row.rank-1 .team-coins { font-size: var(--fs-nome); }
 .team-col.villain .team-coins { color: #fda4af; }
 .team-col.hero .team-coins { color: #6ee7b7; }
 .team-empty {
@@ -922,7 +1028,7 @@ body.obs .pill-ws.on { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.82rem;
+  font-size: var(--fs-mini);
   font-weight: 800;
   font-style: italic;
   color: var(--muted);
@@ -939,14 +1045,16 @@ body.obs .pill-ws.on { display: none; }
   padding: 0.35rem 0.9rem;
   min-height: 3.4rem;
 }
+/* [celular] Fallback legado (só aparece com servidor antigo, sem dados de time). Mesmo assim
+   respeita o piso: se um dia voltar a aparecer, não pode voltar ilegível. */
 .lb-title {
   display: flex; flex-direction: column; align-items: center;
-  font-size: 0.72rem; letter-spacing: 0.14em; color: var(--gold);
+  font-size: var(--fs-mini); letter-spacing: 0.02em; color: var(--gold);
   line-height: 1.1;
-  min-width: 3.6rem;
+  min-width: 4.6rem;
   text-align: center;
 }
-.lb-ico { font-size: 1.3rem; }
+.lb-ico { font-size: var(--fs-nome); }
 .lb-list {
   flex: 1;
   display: grid;
@@ -976,12 +1084,12 @@ body.obs .pill-ws.on { display: none; }
 .lb-item.rank-1 .lb-avatar { border-color: var(--gold); box-shadow: 0 0 0.5rem rgba(251, 191, 36, 0.8); }
 .lb-item.rank-2 .lb-avatar { border-color: #e2e8f0; }
 .lb-item.rank-3 .lb-avatar { border-color: #d97706; }
-.lb-rank { font-size: 0.95rem; width: 1.2rem; text-align: center; color: var(--muted); }
-.lb-item.rank-1 .lb-rank { font-size: 1.15rem; }
-.lb-avatar { width: 2rem; height: 2rem; }
-.lb-name { flex: 1; min-width: 0; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lb-coins { font-size: 0.88rem; color: var(--gold); white-space: nowrap; }
-.lb-empty { font-size: 0.9rem; color: var(--muted); padding: 0.3rem 0; }
+.lb-rank { font-size: var(--fs-mini); width: 1.5rem; text-align: center; color: var(--muted); }
+.lb-item.rank-1 .lb-rank { font-size: var(--fs-corpo); }
+.lb-avatar { width: 2.2rem; height: 2.2rem; }
+.lb-name { flex: 1; min-width: 0; font-size: var(--fs-mini); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-coins { font-size: var(--fs-mini); color: var(--gold); white-space: nowrap; }
+.lb-empty { font-size: var(--fs-mini); color: var(--muted); padding: 0.3rem 0; }
 
 /* Compact gift legend (replaces the old CTA line) ---------------------------------- */
 .legend {
@@ -997,22 +1105,28 @@ body.obs .pill-ws.on { display: none; }
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  /* [revisão] A legenda é uma chave ESTÁTICA: quem assiste lê uma vez e ignora. Ela era quem
-     estourava a faixa 64–72 % (folga medida: -6,4 px, invadindo a faixa de metas em 0,77 %).
-     Encolhe aqui para financiar o aumento dos nomes/moedas do ranking, que são lidos o tempo todo. */
-  font-size: 0.68rem;
+  /* [celular] A legenda era o MENOR texto legível do overlay (0.68rem ≈ 13 px equivalentes a
+     1080) e é justamente a "informação inútil" da queixa do cliente: uma chave estática de 4
+     presentes que quem assiste lê uma vez e nunca mais. Ela agora respeita o piso como todo o
+     resto — mas 4 itens a ≈23 px não cabem em uma linha de 1080 e ela quebra em duas.
+     RECOMENDAÇÃO AO AGENTE DE CONTEÚDO: esta linha é a primeira candidata a SAIR por inteiro (ou
+     a virar 1 item rotativo em vez de 4 fixos). O espaço vale mais para os nomes do ranking. */
+  font-size: var(--fs-mini);
   font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
-  padding: 0.05rem 0.7rem 0.07rem;
+  letter-spacing: 0;
+  line-height: 1.15;
+  padding: 0.1rem 0.7rem 0.12rem;
+  max-width: calc(100% - 2 * var(--pad-x));
+  flex-wrap: wrap;
+  justify-content: center;
   border-radius: 999px;
   color: var(--text);
   background: rgba(8, 12, 26, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: var(--shadow);
-  white-space: nowrap;
   animation: legend-pulse 3.2s ease-in-out infinite;
 }
+.legend-item { white-space: nowrap; }
 .legend-dot { color: var(--muted); }
 .legend-item { display: inline-flex; align-items: center; gap: 0.28em; }
 @keyframes legend-pulse {
@@ -1046,8 +1160,10 @@ body.obs .pill-ws.on { display: none; }
   align-items: center;
   gap: 0.3rem;
   max-width: 100%;
-  font-size: 0.78rem;
-  padding: 0.08rem 0.55rem 0.08rem 0.12rem;
+  /* [celular] O chat é secundário (a pessoa vê o próprio nome aparecer), mas "secundário" não é
+     desculpa para 0.78rem ≈ 15 px: fica no piso. A opacidade do trilho é que o mantém discreto. */
+  font-size: var(--fs-mini);
+  padding: 0.12rem 0.6rem 0.12rem 0.14rem;
   border-radius: 999px;
   background: rgba(8, 12, 26, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1056,7 +1172,7 @@ body.obs .pill-ws.on { display: none; }
   min-width: 0;
 }
 .chat-item.fade { opacity: 0; }
-.chat-avatar { width: 1.35rem; height: 1.35rem; border-width: 1px; }
+.chat-avatar { width: 1.9rem; height: 1.9rem; border-width: 1px; }
 .chat-name { color: var(--cyan); white-space: nowrap; }
 .chat-text { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes chat-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
@@ -1085,9 +1201,9 @@ body.flash-green .safe::after { opacity: 1; transition: none; background: radial
   inset: 0;
   z-index: 40;
   pointer-events: none;
-  font-size: 0.9rem;
+  font-size: var(--fs-mini);
   font-weight: 900;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 .sz-zone {
@@ -1107,7 +1223,7 @@ body.flash-green .safe::after { opacity: 1; transition: none; background: radial
   color: #fff;
   text-shadow: none;
   white-space: nowrap;
-  font-size: 0.85rem;
+  font-size: var(--fs-mini);
 }
 .sz-zone.dead  { background: rgba(239, 68, 68, 0.3); }
 .sz-zone.dead .sz-label { color: #fecaca; }
