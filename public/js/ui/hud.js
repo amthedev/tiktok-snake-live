@@ -258,6 +258,9 @@ export function createHud(root, opts = {}) {
     headVs,
     el('div', 'battle-team hero', 'HERÓIS 😇')
   );
+  // [persist] Deixa explícito na tela QUAL ranking é este: o duelo é DA RODADA e zera a cada
+  // rodada nova; o ranking da LIVE (moedas totais) vive na seção de metas.
+  const battleScope = el('div', 'battle-scope', 'DUELO DESTA RODADA · zera a cada rodada');
   const tug = el('div', 'tug');
   const tugVillain = el('div', 'tug-fill villain');
   const tugHero = el('div', 'tug-fill hero');
@@ -269,7 +272,7 @@ export function createHud(root, opts = {}) {
   const colVillain = el('ul', 'team-col villain');
   const colHero = el('ul', 'team-col hero');
   battleCols.append(colVillain, colHero);
-  battleBox.append(battleHead, tug, battleCols);
+  battleBox.append(battleHead, battleScope, tug, battleCols);
 
   // Legacy overall top-3 (only shown when the payload has no team data — old servers).
   const legacyBox = el('div', 'glass leaderboard hidden');
@@ -391,6 +394,8 @@ export function createHud(root, opts = {}) {
   }
 
   // ---- setLeaderboard (v2: VILÕES × HERÓIS battle; legacy shape still renders) ---------
+  // [persist] Sempre prefere as moedas do TIME; o fallback para `coins` só vale no escopo da
+  // live (numa lista da rodada, `coins` já é o total da rodada daquele gifter).
   function teamCoinsOf(g, team) {
     const own = Number(team === 'villain' ? g?.villainCoins : g?.heroCoins);
     return Number.isFinite(own) && own > 0 ? own : Number(g?.coins) || 0;
@@ -446,12 +451,18 @@ export function createHud(root, opts = {}) {
       return;
     }
 
-    const vCoins = Math.max(0, Number(lb?.teams?.villain?.coins) || 0);
-    const hCoins = Math.max(0, Number(lb?.teams?.hero?.coins) || 0);
-    const vTop = Array.isArray(lb?.teams?.villain?.top) ? lb.teams.villain.top.slice(0, 3) : [];
-    const hTop = Array.isArray(lb?.teams?.hero?.top) ? lb.teams.hero.top.slice(0, 3) : [];
+    // [persist] A barra de cabo de guerra é o duelo DA RODADA (`lb.round`), que zera a cada
+    // rodada nova. Servidores antigos não mandam `round` → cai no acumulado da live, como antes.
+    const battle = lb?.round && (lb.round.villain || lb.round.hero) ? lb.round : lb?.teams;
+    const perRound = battle === lb?.round;
+    const vCoins = Math.max(0, Number(battle?.villain?.coins) || 0);
+    const hCoins = Math.max(0, Number(battle?.hero?.coins) || 0);
+    const vTop = Array.isArray(battle?.villain?.top) ? battle.villain.top.slice(0, 3) : [];
+    const hTop = Array.isArray(battle?.hero?.top) ? battle.hero.top.slice(0, 3) : [];
+    const scopeTxt = perRound ? 'DUELO DESTA RODADA · zera a cada rodada' : 'DUELO DA LIVE';
+    setText(battleScope, 'scope', scopeTxt);
     const sig = (g) => `${g.userId}:${g.villainCoins ?? ''}:${g.heroCoins ?? ''}:${g.coins}:${g.avatarUrl || ''}`;
-    const key = `battle|${vCoins}|${hCoins}|${vTop.map(sig).join(',')}|${hTop.map(sig).join(',')}`;
+    const key = `battle|${perRound ? lb?.round?.roundId ?? '' : 'live'}|${vCoins}|${hCoins}|${vTop.map(sig).join(',')}|${hTop.map(sig).join(',')}`;
     if (cache.lb === key) return;
     cache.lb = key;
 

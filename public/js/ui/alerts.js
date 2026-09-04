@@ -20,7 +20,7 @@ const QUEUE_MAX = 8;              // acima disso, os de menor prioridade são de
 const DURATION = {
   member: 2500,
   share: 2800,
-  follow: 3200,
+  follow: 4200,   // [itens] maior e com foto: fica mais tempo na tela que os outros
   champion: 4000
 };
 
@@ -303,13 +303,34 @@ export function createAlerts(container, opts = {}) {
     memberBatch.timer = setT(flushMembers, Math.max(MEMBER_RATE_MS - since, MEMBER_BATCH_MS));
   }
 
+  /**
+   * [itens] Seguidor novo — pedido do cliente: "quando a pessoa seguir, apareça a FOTO dela
+   * na tela numa mensagem que ela começou a seguir".
+   *
+   * Card próprio, bem maior que o de entrada: foto grande em destaque (com anel roxo pulsante),
+   * "💜 Fulano" e a linha "começou a seguir!". Sem foto, cai nas iniciais coloridas de sempre.
+   */
   function follow(user) {
     if (destroyed) return;
     enqueue({
       kind: 'follow',
       priority: PRIORITY.follow,
-      build: () => buildSimple('follow', user, `💜 ${nickOf(user)} seguiu!`)
+      build: () => buildFollow(user)
     });
+  }
+
+  function buildFollow(user) {
+    const card = el('div', 'alert alert-follow follow-big');
+    const glow = el('div', 'follow-glow');
+    card.appendChild(glow);
+    // Foto grande: o mesmo avatarNode (já trata proxy /img, onerror e iniciais), só que
+    // numa classe própria bem maior.
+    card.appendChild(avatarNode(user, 'al-avatar follow-avatar'));
+    const body = el('div', 'alert-body follow-body');
+    body.appendChild(el('div', 'follow-nick', `💜 ${nickOf(user, 20)}`));
+    body.appendChild(el('div', 'follow-text', 'começou a seguir!'));
+    card.appendChild(body);
+    return card;
   }
 
   function share(user) {

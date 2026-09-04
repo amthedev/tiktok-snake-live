@@ -23,7 +23,16 @@ const MIN_GAP_MS = {
   win: 1000,
   lose: 1000,
   tick: 80,
-  start: 300
+  start: 300,
+  // [itens] sons dos itens especiais
+  boltSpawn: 90, bolt: 120,
+  iceSpawn: 90, ice: 200,
+  webSpawn: 90, web: 200,
+  skullSpawn: 150, skull: 300,
+  gemSpawn: 90, diamond: 120,
+  starSpawn: 150, star: 300,
+  magnet: 200, clock: 200,
+  shieldPop: 120
 };
 
 /**
@@ -216,6 +225,98 @@ export function createAudio(enabled = true, opts = {}) {
       tone({ type: 'sine', freq: 1320, dur: 0.28, gain: 0.16, attack: 0.003 });
       tone({ type: 'triangle', freq: 1760, dur: 0.22, gain: 0.06, at: 0.02 });
       tone({ type: 'sine', freq: 660, dur: 0.28, gain: 0.06 });
+    },
+
+    // ---- [itens] itens especiais ---------------------------------------------------------
+    // Cada um tem uma assinatura sonora distinta, para dar de ouvir o que aconteceu mesmo
+    // sem olhar a tela. Tudo sintetizado: nenhum arquivo externo.
+
+    /** ⚡ Raio aparecendo: estalo elétrico curto e agudo. */
+    boltSpawn() {
+      noise({ dur: 0.08, gain: 0.10, filter: 'highpass', freq: 3000 });
+      tone({ type: 'square', freq: 2400, freqEnd: 1200, dur: 0.07, gain: 0.05, lowpass: 4000 });
+    },
+    /** ⚡ Raio na cobra: trovão rápido e seco. */
+    bolt() {
+      noise({ dur: 0.28, gain: 0.30, filter: 'highpass', freq: 2200, freqEnd: 400 });
+      tone({ type: 'sawtooth', freq: 900, freqEnd: 60, dur: 0.3, gain: 0.22, lowpass: 2600 });
+      tone({ type: 'sine', freq: 120, freqEnd: 40, dur: 0.35, gain: 0.25, attack: 0.002 });
+    },
+    /** 🧊 Gelo aparecendo: tilintar cristalino. */
+    iceSpawn() {
+      tone({ type: 'sine', freq: midiToHz(96), dur: 0.16, gain: 0.09 });
+      tone({ type: 'sine', freq: midiToHz(103), dur: 0.20, gain: 0.06, at: 0.05 });
+    },
+    /** 🧊 Gelo na cobra: congelamento — brilho agudo que escorrega para grave. */
+    ice() {
+      tone({ type: 'sine', freq: 2600, freqEnd: 320, dur: 0.55, gain: 0.16, attack: 0.004 });
+      noise({ dur: 0.5, gain: 0.10, filter: 'bandpass', freq: 4200, freqEnd: 700, q: 3 });
+      tone({ type: 'triangle', freq: 300, freqEnd: 150, dur: 0.4, gain: 0.08, at: 0.1 });
+    },
+    /** 🕸️ Teia aparecendo: "pluft" abafado. */
+    webSpawn() {
+      noise({ dur: 0.14, gain: 0.08, filter: 'lowpass', freq: 1200, freqEnd: 500 });
+    },
+    /** 🕸️ Teia prendendo: elástico esticando e travando. */
+    web() {
+      tone({ type: 'sawtooth', freq: 220, freqEnd: 90, dur: 0.35, gain: 0.12, lowpass: 800 });
+      noise({ dur: 0.3, gain: 0.10, filter: 'bandpass', freq: 700, freqEnd: 250, q: 2 });
+      tone({ type: 'sine', freq: 70, dur: 0.25, gain: 0.10, at: 0.12 });
+    },
+    /** ☠️ Caveira aparecendo: aviso grave e sinistro. */
+    skullSpawn() {
+      tone({ type: 'sine', freq: 180, freqEnd: 120, dur: 0.3, gain: 0.10, attack: 0.02 });
+      tone({ type: 'sawtooth', freq: 90, dur: 0.3, gain: 0.05, lowpass: 500 });
+    },
+    /** ☠️ Caveira na cobra: pancada pesada com cauda dissonante. */
+    skull() {
+      noise({ dur: 0.5, gain: 0.34, filter: 'lowpass', freq: 2400, freqEnd: 90 });
+      tone({ type: 'sine', freq: 140, freqEnd: 28, dur: 0.7, gain: 0.34, attack: 0.002 });
+      tone({ type: 'sawtooth', freq: 200, freqEnd: 50, dur: 0.5, gain: 0.10, lowpass: 700, at: 0.02 });
+      // trítono grave = "morte"
+      tone({ type: 'triangle', freq: midiToHz(43), dur: 0.8, gain: 0.09, at: 0.1 });
+      tone({ type: 'triangle', freq: midiToHz(49), dur: 0.8, gain: 0.09, at: 0.1 });
+    },
+    /** 💎 Item de bônus aparecendo: sino curto e cristalino. */
+    gemSpawn() {
+      tone({ type: 'triangle', freq: midiToHz(93), dur: 0.14, gain: 0.10 });
+      tone({ type: 'sine', freq: midiToHz(105), dur: 0.18, gain: 0.04, at: 0.03 });
+    },
+    /** 💎 Diamante coletado: arpejo cristalino ascendente. */
+    diamond() {
+      [88, 92, 95, 100].forEach((m, i) => {
+        tone({ type: 'triangle', freq: midiToHz(m), dur: 0.2, gain: 0.12, at: i * 0.045 });
+      });
+      noise({ at: 0.1, dur: 0.35, gain: 0.04, filter: 'highpass', freq: 7000 });
+    },
+    /** ⭐ Estrela aparecendo: brilho que sobe. */
+    starSpawn() {
+      tone({ type: 'sine', freq: 900, freqEnd: 1800, dur: 0.22, gain: 0.10, attack: 0.01 });
+    },
+    /** ⭐ Estrela coletada: fanfarra curta e triunfal (invencibilidade). */
+    star() {
+      const notes = [72, 79, 84, 88, 91];
+      notes.forEach((m, i) => {
+        tone({ type: 'square', freq: midiToHz(m), dur: 0.3, gain: 0.07, at: i * 0.06, lowpass: 3000 });
+        tone({ type: 'triangle', freq: midiToHz(m), dur: 0.3, gain: 0.13, at: i * 0.06 });
+      });
+      noise({ at: 0.28, dur: 0.7, gain: 0.05, filter: 'highpass', freq: 6000 });
+      tone({ type: 'sine', freq: midiToHz(96), dur: 0.8, gain: 0.07, at: 0.34, attack: 0.08 });
+    },
+    /** 🧲 Ímã: zumbido magnético que sobe. */
+    magnet() {
+      tone({ type: 'sawtooth', freq: 160, freqEnd: 520, dur: 0.45, gain: 0.10, lowpass: 1400 });
+      tone({ type: 'sine', freq: 480, freqEnd: 960, dur: 0.4, gain: 0.07, at: 0.05 });
+    },
+    /** ⏱️ Relógio/turbo: tique-taque rápido virando arranque. */
+    clock() {
+      for (let i = 0; i < 3; i++) tone({ type: 'square', freq: 1600, dur: 0.03, gain: 0.07, at: i * 0.07, lowpass: 3000 });
+      tone({ type: 'sawtooth', freq: 300, freqEnd: 1400, dur: 0.35, gain: 0.11, at: 0.2, lowpass: 2600 });
+    },
+    /** 🛡️ Escudo/estrela absorvendo um golpe: "poc" cristalino. */
+    shieldPop() {
+      tone({ type: 'sine', freq: 1400, freqEnd: 2600, dur: 0.14, gain: 0.12, attack: 0.003 });
+      noise({ dur: 0.16, gain: 0.06, filter: 'highpass', freq: 4000 });
     }
   };
 

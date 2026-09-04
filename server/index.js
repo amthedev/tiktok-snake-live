@@ -42,6 +42,8 @@ const PORT = int(process.env.PORT, 3000) || 3000;
 const HOST = str(process.env.HOST, '127.0.0.1');
 const DEBUG = /^(1|true|yes)$/i.test(str(process.env.DEBUG, ''));
 const HEARTBEAT_MS = 25_000;
+// [persist] Rodada guardada sem snapshot há mais que isso → o overlay começa uma rodada nova.
+const RESUME_MAX_AGE_MS = 5 * 60 * 1000;
 const COMMANDS = new Set(['new_round', 'pause', 'resume', 'spawn_bomb', 'spawn_apple', 'clear_bombs', 'set_config', 'reload']);
 
 /* ------------------------------------------------------------------------------------------------
@@ -92,6 +94,75 @@ function overlayConfig() {
 
 let lastSnapshot = null; // last overlay snapshot (for the panel)
 let lastRound = null; // { roundId, startedAt }
+
+/* ---- [persist] Dono da partida -----------------------------------------------------------------
+ *
+ * DECISÃO: o PRIMEIRO overlay conectado é o DONO ("owner"); qualquer overlay que conecte depois
+ * entra em MODO ESPELHO ("mirror") e só EXIBE. Motivo: `round_end` incrementa vitórias/derrotas e
+ * as metas acumulam moedas — com dois overlays abertos (o do OBS e um no navegador, por exemplo)
+ * os dois mandariam `round_end` da mesma rodada e o placar contaria em dobro.
+ *
+ * Regras:
+ *  • O papel é decidido pelo servidor e vai no `hello` (`role: 'owner' | 'mirror'`).
+ *  • Só o dono tem `round_start` / `round_end` / `snapshot` aceitos; do espelho eles são ignorados.
+ *  • Se o dono cair (F5, OBS fechado, queda de rede), o próximo overlay da fila é promovido e
+ *    recebe um `role` avisando da promoção — a partida continua de onde parou, porque o estado
+ *    mora aqui no servidor, não no navegador.
+ * ---------------------------------------------------------------------------------------------- */
+
+let ownerWs = null;
+
+// Só um overlay declarado pode ser dono: o painel (`identify role=panel`) nunca joga, e um cliente
+// que ainda não se identificou não é elegível — senão o painel viraria dono por chegar primeiro.
+const isOverlay = (ws) => ws.role === 'overlay';
+
+/**
+ * Promove o overlay mais antigo ainda conectado a dono da partida.
+ * @param {{notify?: boolean}} [o] notify=false no `hello` inicial (o papel já vai no próprio hello)
+ */
+function electOwner({ promotion = false } = {}) {
+  // Um dono que já não está OPEN (o socket fechou, ou está fechando) perde a posse na hora: o
+  // evento 'close' do ws é assíncrono, e esperar por ele deixaria um overlay morto segurando a
+  // partida enquanto o overlay novo — o F5 do streamer — já está conectado e sendo ignorado.
+  if (ownerWs && ownerWs.readyState === WebSocket.OPEN) return ownerWs;
+  ownerWs = null;
+  for (const client of wss.clients) {
+    if (client.readyState !== WebSocket.OPEN || !isOverlay(client)) continue;
+    if (!ownerWs || client.connectedAt < ownerWs.connectedAt) ownerWs = client;
+  }
+  if (ownerWs && ownerWs.announcedRole !== 'owner') {
+    // Avisa só quando o papel MUDA para este cliente: `electOwner` roda em vários caminhos
+    // (identify, round_start, snapshot, saída do dono) e reenviar 'role' a cada chamada
+    // encheria o cliente de mensagens iguais.
+    ownerWs.announcedRole = 'owner';
+    // `promotion` vem do handler de close: o dono anterior caiu e este overlay o substitui —
+    // é o caso em que o cliente precisa saber que ASSUMIU a partida em andamento.
+    send(ownerWs, 'role', { role: 'owner', promoted: promotion === true });
+    log.info(`overlay dono da partida definido (${wss.clients.size} cliente(s))`);
+  }
+  return ownerWs;
+}
+
+function roleOf(ws) {
+  if (ownerWs === ws) return 'owner';
+  // Ninguém é dono ainda (este cliente acabou de conectar e o `identify` está a caminho):
+  // 'owner' é o palpite certo — senão o overlay começaria como espelho e não mandaria o
+  // primeiro `round_start`, deixando o jogo parado até o `role` chegar.
+  if (!ownerWs || ownerWs.readyState !== WebSocket.OPEN) return 'owner';
+  return 'mirror';
+}
+
+/** [persist] Estado da rodada mandado no `hello` — `resume:true` quando dá para retomar. */
+function resumePayload() {
+  const live = stats.live;
+  const fresh = stats.isLiveFresh(RESUME_MAX_AGE_MS);
+  return {
+    resume: fresh,
+    live,
+    ageMs: live.updatedAt ? Date.now() - live.updatedAt : null,
+    maxAgeMs: RESUME_MAX_AGE_MS,
+  };
+}
 
 /* ------------------------------------------------------------------------------------------------
  * HTTP app
@@ -154,6 +225,9 @@ app.get('/api/status', (_req, res) => {
     clients: wss.clients.size,
     snapshot: lastSnapshot,
     round: lastRound,
+    live: stats.live,                 // [persist] estado autoritativo da rodada
+    roundLeaderboard: stats.roundLeaderboard, // [persist] ranking da rodada
+    resumable: stats.isLiveFresh(RESUME_MAX_AGE_MS),
     settings: { username: stats.settings.username, config: overlayConfig() },
     uptimeSec: Math.round(process.uptime()),
   });
@@ -330,15 +404,18 @@ function broadcast(type, payload = {}, { except = null } = {}) {
   return n;
 }
 
-function helloPayload() {
+function helloPayload(ws = null) {
   return {
     config: overlayConfig(),
     stats: stats.stats,
-    leaderboard: stats.leaderboard,
+    leaderboard: stats.leaderboard, // [persist] já inclui o bloco `round`
     tiktok: bridge.status,
     rules,
     snapshot: lastSnapshot,
     round: lastRound,
+    // [persist] papel deste cliente + estado da rodada para retomar depois de um F5.
+    role: ws ? roleOf(ws) : 'mirror',
+    ...resumePayload(),
   };
 }
 
@@ -350,16 +427,43 @@ function handleClientMessage(ws, raw) {
     return;
   }
   if (!msg || typeof msg !== 'object') return;
+
+  // [persist] Só o overlay DONO altera o estado da partida; os espelhos são ignorados (senão
+  // dois overlays abertos contariam a mesma vitória duas vezes). Ver "Dono da partida" acima.
+  //
+  // Um cliente que manda mensagens de partida sem ter feito `identify` (overlay antigo) se
+  // declara overlay aqui e entra na eleição — assim continua funcionando como antes quando é o
+  // único conectado, mas ainda perde para um dono já eleito.
+  const claimsGame = msg.type === 'round_start' || msg.type === 'round_end' || msg.type === 'snapshot';
+  if (claimsGame && ws.role === 'unknown') ws.role = 'overlay';
+  if (claimsGame) electOwner();
+  const owner = ownerWs === ws;
+
   switch (msg.type) {
-    case 'identify':
+    case 'identify': {
       ws.role = str(msg.role, 'unknown').slice(0, 20);
+      if (ws.role === 'overlay') electOwner();
+      const mine = roleOf(ws);
+      if (ws.announcedRole !== mine) {
+        ws.announcedRole = mine;
+        send(ws, 'role', { role: mine });
+      }
       break;
-    case 'round_start':
-      lastRound = { roundId: int(msg.roundId, 0), startedAt: Date.now() };
-      log.info(`rodada ${lastRound.roundId} começou`);
-      broadcast('round_start', { roundId: lastRound.roundId }, { except: ws });
+    }
+    case 'round_start': {
+      if (!owner) { log.debug('round_start ignorado (overlay espelho)'); break; }
+      const roundId = int(msg.roundId, 0);
+      lastRound = { roundId, startedAt: Date.now() };
+      // [persist] Nova rodada zera SÓ o ranking da rodada (o da live continua somando).
+      stats.startRound(roundId);
+      stats.beginLiveRound(roundId, { startedAt: lastRound.startedAt });
+      log.info(`rodada ${roundId} começou — ranking da rodada zerado`);
+      broadcast('round_start', { roundId }, { except: ws });
+      broadcast('leaderboard', stats.leaderboard);
       break;
+    }
     case 'round_end': {
+      if (!owner) { log.debug('round_end ignorado (overlay espelho)'); break; }
       const summary = {
         roundId: int(msg.roundId, 0),
         result: msg.result === 'win' ? 'win' : 'loss',
@@ -369,12 +473,13 @@ function handleClientMessage(ws, raw) {
         durationMs: int(msg.durationMs, 0),
       };
       const s = stats.recordRound(summary);
+      stats.endLiveRound(summary.result); // [persist] rodada morta: não retomar numa reconexão
       log.info(`rodada ${summary.roundId}: ${summary.result === 'win' ? 'VITÓRIA' : 'DERROTA'} (maçãs ${summary.apples}, bombas ${summary.bombsEaten})`);
       broadcast('stats', s);
       break;
     }
-    case 'snapshot':
-      lastSnapshot = {
+    case 'snapshot': {
+      const snap = {
         roundId: int(msg.roundId, 0),
         phase: str(msg.phase, 'unknown'),
         length: int(msg.length, 0),
@@ -385,9 +490,23 @@ function handleClientMessage(ws, raw) {
         paused: msg.paused === true,
         at: Date.now(),
       };
-      ws.role = ws.role === 'unknown' ? 'overlay' : ws.role;
+      if (!owner) { log.debug('snapshot ignorado (overlay espelho)'); break; }
+      lastSnapshot = snap;
+      // [persist] Guarda o estado corrente em disco (debounced pelo StatsStore) para que um F5
+      // ou um restart do servidor retomem a mesma rodada, no mesmo ponto.
+      stats.updateLive({
+        roundId: snap.roundId,
+        phase: snap.phase,
+        length: snap.length,
+        apples: snap.apples,
+        bombsEaten: int(msg.bombsEaten, stats.live.bombsEaten),
+        progress: snap.progress,
+        elapsedMs: int(msg.elapsedMs, 0),
+        goals: msg.goals && typeof msg.goals === 'object' && !Array.isArray(msg.goals) ? msg.goals : undefined,
+      });
       broadcast('snapshot', lastSnapshot, { except: ws });
       break;
+    }
     case 'ping':
       send(ws, 'pong');
       break;
@@ -399,6 +518,7 @@ function handleClientMessage(ws, raw) {
 wss.on('connection', (ws, req) => {
   ws.isAlive = true;
   ws.role = 'unknown';
+  ws.connectedAt = Date.now(); // [persist] desempata a eleição do dono (o mais antigo vence)
   const ip = req.socket.remoteAddress;
   log.debug(`ws conectado (${ip}) — ${wss.clients.size} cliente(s)`);
   ws.on('pong', () => {
@@ -406,8 +526,18 @@ wss.on('connection', (ws, req) => {
   });
   ws.on('message', (data) => handleClientMessage(ws, data));
   ws.on('error', (err) => log.debug('ws erro:', err.message));
-  ws.on('close', () => log.debug(`ws fechado — ${wss.clients.size} cliente(s)`));
-  send(ws, 'hello', helloPayload());
+  ws.on('close', () => {
+    // [persist] Se o dono caiu (F5 / OBS fechado), promove o próximo overlay da fila.
+    if (ownerWs === ws) {
+      ownerWs = null;
+      log.debug('overlay dono desconectou — elegendo outro');
+      electOwner({ promotion: true });
+    }
+    log.debug(`ws fechado — ${wss.clients.size} cliente(s)`);
+  });
+  // O papel definitivo sai no `role` que responde ao `identify` do cliente; o `hello` já leva o
+  // papel atual para o caso de um overlay antigo que não se identifica.
+  send(ws, 'hello', helloPayload(ws));
 });
 
 wss.on('error', (err) => log.error('WebSocketServer:', err.message));

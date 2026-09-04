@@ -194,10 +194,26 @@
             <li><code>mode: "allowlist"</code> — só os presentes da lista <code>gifts</code> valem; os demais seguem <code>unlisted</code>.</li>
             <li><code>match</code> — nomes (sem diferença de maiúsculas/acentos). <code>ids</code> — ids numéricos do TikTok.</li>
             <li><code>team</code> — <code>"villain"</code> (atrapalha) ou <code>"hero"</code> (ajuda).</li>
-            <li><code>effects</code> — por unidade: <code>bombs</code>, <code>food</code> (comida dourada), <code>grow</code> (cresce na hora), <code>attack</code> (morde a cobra), <code>shieldSec</code> (escudo), <code>clearBombs</code> (limpa tudo).</li>
+            <li><code>effects</code> — por unidade: <code>bombs</code>, <code>food</code> (comida dourada), <code>grow</code> (cresce na hora), <code>attack</code> (morde a cobra), <code>shieldSec</code> (escudo), <code>clearBombs</code> (limpa as bombas).</li>
+            <li><b>Itens especiais</b> (também em <code>effects</code>, valor = quantos aparecem):
+              <br />😈 dano — <code>bolt</code> ⚡ raio (encolhe muito, some rápido), <code>ice</code> 🧊 gelo (deixa lenta),
+              <code>web</code> 🕸️ teia (prende por alguns passos), <code>skull</code> ☠️ caveira (dano pesado);
+              <br />😇 bônus — <code>diamond</code> 💎 diamante (cresce +5), <code>star</code> ⭐ estrela (invencível),
+              <code>magnet</code> 🧲 ímã (puxa as comidas), <code>clock</code> ⏱️ relógio (deixa rápida).
+            </li>
+            <li>Efeitos por tempo, sem precisar do item: <code>starSec</code>, <code>magnetSec</code>, <code>fastSec</code> (segundos). E <code>clearAll</code> limpa bombas <i>e</i> itens.</li>
+            <li><code>combo</code> — mesmas chaves de <code>effects</code>, para o espetáculo extra dos presentões (é aplicado junto).</li>
+            <li><b>Escala de recompensa:</b> quanto mais caro o presente, mais coisa acontece — 1 moeda faz algo pequeno, o supremo dispara um combo (estrela + chuva de diamantes + limpar tudo).</li>
+            <li>Cada item tem limite no tabuleiro (⚡6, 🧊4, 🕸️4, ☠️3, 💎8, ⭐3, 🧲2, ⏱️3) e pavio próprio: o que passar disso é descartado.</li>
             <li><code>tier</code> — <code>"normal"</code>, <code>"mega"</code> ou <code>"supreme"</code> (visual do card).</li>
             <li>Sem regra: vira vilão pelo valor — <code>bombsPerUnit + ⌊moedas / bombsPerCoins⌋</code> bombas.</li>
           </ul>
+          <h3>Bomba mais forte</h3>
+          <p class="muted" style="margin:0 0 .6rem">
+            O dano da bomba agora é <code>bombShrink + ⌊tamanho × bombShrinkPct⌋</code> (padrão da live: 4 + 20 %),
+            e a cobra nasce com <code>startLength</code> (10). Assim a bomba dói de verdade numa cobra grande sem
+            acabar a rodada em 3 segundos. Veja <code>docs/DECISOES-LIVE.md</code> para os números medidos.
+          </p>
           <h3>Exemplo: só Rosa (vilã) e GG (herói)</h3>
           <pre id="rules-example">{
   "mode": "allowlist",
@@ -208,7 +224,11 @@
     { "name": "Rosa", "match": ["Rose", "Rosa"], "ids": [5655],
       "team": "villain", "effects": { "bombs": 1 }, "desc": "solta 1 bomba" },
     { "name": "GG", "match": ["GG"],
-      "team": "hero", "effects": { "food": 1 }, "desc": "+1 comida dourada" }
+      "team": "hero", "effects": { "food": 1 }, "desc": "+1 comida dourada" },
+    { "name": "Leão", "match": ["Lion", "Leão"], "tier": "supreme",
+      "team": "villain", "effects": { "bombs": 40, "attack": 6 },
+      "combo": { "bolt": 6, "ice": 4, "web": 4, "skull": 3 },
+      "desc": "👑 40 bombas, mordida −6, ⚡ raios, 🧊 gelo, 🕸️ teias e ☠️ caveiras" }
   ]
 }</pre>
           <button class="btn btn-sm btn-ghost" id="btn-rules-example" type="button">Usar este exemplo</button>

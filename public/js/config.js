@@ -10,7 +10,12 @@ export const DEFAULTS = {
   baseSpeed: 6,             // cells per second at length 3
   speedPerSegment: 0.03,    // added per extra segment
   maxSpeed: 13,
-  bombShrink: 3,
+  // [itens] Balanceamento da bomba (cliente: "a bomba é muito fraquinha").
+  // Dano = bombShrink + floor(tamanho * bombShrinkPct), e a cobra nasce com startLength.
+  // Só dobrar o valor fixo acabava com a rodada em ~3 s; medido em docs/DECISOES-LIVE.md.
+  bombShrink: 4,
+  bombShrinkPct: 0.2,       // +20% do tamanho atual: bomba nunca é fraca numa cobra grande
+  startLength: 10,          // fôlego inicial para a bomba mais forte não matar de cara
   bombFuseSec: 90,          // 0 = never
   foodFuseSec: 45,          // comida dourada dos heróis; 0 = nunca some
   maxFoodOnBoard: 30,
@@ -29,7 +34,7 @@ export const DEFAULTS = {
 export const STORAGE_KEY = 'snake.config';
 
 const NUMBER_KEYS = new Set([
-  'gridSize', 'baseSpeed', 'speedPerSegment', 'maxSpeed', 'bombShrink',
+  'gridSize', 'baseSpeed', 'speedPerSegment', 'maxSpeed', 'bombShrink', 'bombShrinkPct', 'startLength', // [itens]
   'bombFuseSec', 'foodFuseSec', 'maxFoodOnBoard', 'shieldMaxSec', 'maxBombsOnBoard', 'roundRestartDelaySec',
   'countdownSec', 'shortcutMaxFill'
 ]);
@@ -120,6 +125,9 @@ export function validateConfig(cfg) {
   c.maxSpeed = clamp(Number(c.maxSpeed) || DEFAULTS.maxSpeed, c.baseSpeed, 60);
   c.speedPerSegment = clamp(Number(c.speedPerSegment) || 0, 0, 5);
   c.bombShrink = clamp(Math.round(Number(c.bombShrink) || DEFAULTS.bombShrink), 0, 50);
+  // [itens] 0..1 (fração do tamanho somada ao dano) e tamanho inicial 3..40.
+  c.bombShrinkPct = clamp(Number(c.bombShrinkPct) ?? DEFAULTS.bombShrinkPct, 0, 1);
+  c.startLength = clamp(Math.round(Number(c.startLength) || DEFAULTS.startLength), 3, 40);
   c.bombFuseSec = clamp(Number(c.bombFuseSec) || 0, 0, 36000);
   c.maxBombsOnBoard = clamp(Math.round(Number(c.maxBombsOnBoard) || DEFAULTS.maxBombsOnBoard), 0, g * g);
   c.roundRestartDelaySec = clamp(Number(c.roundRestartDelaySec) ?? DEFAULTS.roundRestartDelaySec, 1, 600);

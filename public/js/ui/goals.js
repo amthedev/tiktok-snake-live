@@ -145,8 +145,10 @@ export function createGoals(container, opts = {}) {
 
   // ---- estado -----------------------------------------------------------------------------
   const state = {
-    heroCoins: 0,          // total de moedas de heróis (base da meta)
+    heroCoins: 0,          // total de moedas de heróis DA LIVE (base da meta)
     villainCoins: 0,
+    roundHero: null,       // [persist] moedas de heróis DA RODADA (null = servidor sem o bloco)
+    roundVillain: null,
     heroTop: [],
     villainTop: [],
     overallTop: [],
@@ -242,8 +244,11 @@ export function createGoals(container, opts = {}) {
   function cardRank() {
     const card = el('div', 'money-card card-rank');
     const head = el('div', 'money-head');
-    head.append(el('span', 'money-ico', '🏆'), el('span', 'money-title', 'RANKING DO DIA'));
+    // [persist] Este é o RANKING DA LIVE: moedas totais desde o começo da transmissão. Nunca
+    // zera de rodada em rodada (quem zera é a barra de duelo do HUD).
+    head.append(el('span', 'money-ico', '🏆'), el('span', 'money-title', 'RANKING DA LIVE'));
     card.appendChild(head);
+    card.appendChild(el('div', 'money-scope', 'moedas de toda a live 🪙'));
 
     const top = (state.overallTop.length ? state.overallTop : [...state.heroTop, ...state.villainTop]
       .sort((a, b) => num(b.coins) - num(a.coins))).slice(0, 3);
@@ -292,8 +297,10 @@ export function createGoals(container, opts = {}) {
   }
 
   function cardDuel() {
-    const v = villainTotal();
-    const h = heroTotal();
+    // [persist] Duelo DA RODADA quando o servidor manda o bloco `round`; senão, o da live.
+    const perRound = state.roundVillain !== null && state.roundHero !== null;
+    const v = perRound ? state.roundVillain : villainTotal();
+    const h = perRound ? state.roundHero : heroTotal();
     const total = v + h;
     const pct = total > 0 ? Math.max(8, Math.min(92, (v / total) * 100)) : 50;
 
@@ -301,6 +308,7 @@ export function createGoals(container, opts = {}) {
     const head = el('div', 'money-head');
     head.append(el('span', 'money-ico', '⚔️'), el('span', 'money-title', 'DUELO: QUEM VENCE?'));
     card.appendChild(head);
+    card.appendChild(el('div', 'money-scope', perRound ? 'só desta rodada ⏱' : 'moedas de toda a live 🪙'));
 
     const bar = el('div', 'duel-bar');
     const fv = el('div', 'duel-fill villain');
@@ -383,11 +391,17 @@ export function createGoals(container, opts = {}) {
     const hasTeams = !!(lb.teams && (lb.teams.villain || lb.teams.hero));
     if (hasTeams) {
       state.usingLocal = false;
+      // A META usa as moedas de herói da LIVE inteira: é progresso acumulado, não da rodada
+      // (uma meta que zerasse a cada rodada nunca seria batida).
       state.heroCoins = num(lb.teams?.hero?.coins);
       state.villainCoins = num(lb.teams?.villain?.coins);
       state.heroTop = Array.isArray(lb.teams?.hero?.top) ? lb.teams.hero.top : [];
       state.villainTop = Array.isArray(lb.teams?.villain?.top) ? lb.teams.villain.top : [];
     }
+    // [persist] O cartão DUELO acompanha a barra do HUD: mostra a disputa DA RODADA.
+    const rd = lb.round && (lb.round.villain || lb.round.hero) ? lb.round : null;
+    state.roundHero = rd ? num(rd.hero?.coins) : null;
+    state.roundVillain = rd ? num(rd.villain?.coins) : null;
     state.overallTop = Array.isArray(lb.top) ? lb.top.slice(0, 3) : [];
     checkGoal();
     refresh();
@@ -449,6 +463,40 @@ export function createGoals(container, opts = {}) {
     showSlide(0);
   }
 
+  // ---- [persist] retomada após F5 -----------------------------------------------------------
+
+  /**
+   * [persist] Estado das metas para o servidor guardar (vai junto do 'snapshot', 1 Hz).
+   * Só o que não dá para recalcular a partir do ranking: em que etapa da escada estamos e
+   * quantas moedas de herói já foram consumidas pelas metas anteriores.
+   */
+  function snapshot() {
+    return {
+      goalIndex: state.goalIndex,
+      goalBase: state.goalBase,
+      ctaIndex: state.ctaIndex,
+      record: state.record ? { ...state.record } : null
+    };
+  }
+
+  /**
+   * [persist] Retoma as metas no ponto em que estavam (chamado no boot com o que veio do 'hello').
+   * Sem isto, um F5 zeraria a escada de metas e o público veria a barra voltar ao começo.
+   */
+  function restore(saved) {
+    if (destroyed || !saved || typeof saved !== 'object') return;
+    const idx = Number(saved.goalIndex);
+    const base = Number(saved.goalBase);
+    if (Number.isFinite(idx) && idx >= 0) state.goalIndex = Math.min(64, Math.floor(idx));
+    if (Number.isFinite(base) && base >= 0) state.goalBase = base;
+    const cta = Number(saved.ctaIndex);
+    if (Number.isFinite(cta) && cta >= 0) state.ctaIndex = Math.floor(cta);
+    if (saved.record && typeof saved.record === 'object' && num(saved.record.coins) > 0) {
+      state.record = { ...saved.record, coins: num(saved.record.coins) };
+    }
+    refresh();
+  }
+
   function setVisible(v) {
     box.classList.toggle('money-hidden', !v);
   }
@@ -464,6 +512,7 @@ export function createGoals(container, opts = {}) {
 
   return {
     setLeaderboard, addGift, newRound, setVisible, destroy,
+    snapshot, restore, // [persist] metas sobrevivem ao F5
     get record() { return state.record ? { ...state.record } : null; },
     get goal() { return { index: state.goalIndex, target: goalTarget(), progress: goalProgress() }; },
     get totals() { return { hero: heroTotal(), villain: villainTotal() }; },

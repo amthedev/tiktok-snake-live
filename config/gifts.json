@@ -54,9 +54,10 @@
       "team": "villain",
       "tier": "normal",
       "effects": {
-        "bombs": 3
+        "bombs": 2,
+        "bolt": 1
       },
-      "desc": "solta 3 bombas"
+      "desc": "2 bombas + ⚡ 1 raio"
     },
     {
       "name": "Boné",
@@ -69,9 +70,10 @@
       "team": "villain",
       "tier": "normal",
       "effects": {
-        "bombs": 6
+        "bombs": 4,
+        "bolt": 2
       },
-      "desc": "solta 6 bombas"
+      "desc": "4 bombas + ⚡ 2 raios"
     },
     {
       "name": "Confete",
@@ -83,9 +85,10 @@
       "team": "villain",
       "tier": "normal",
       "effects": {
-        "bombs": 8
+        "bombs": 6,
+        "ice": 1
       },
-      "desc": "chuva de 8 bombas"
+      "desc": "chuva de 6 bombas + 🧊 gelo"
     },
     {
       "name": "Arma de Dinheiro",
@@ -97,10 +100,12 @@
       "team": "villain",
       "tier": "mega",
       "effects": {
-        "bombs": 12,
-        "attack": 2
+        "bombs": 10,
+        "attack": 2,
+        "bolt": 3,
+        "web": 1
       },
-      "desc": "12 bombas + morde −2 da cobra"
+      "desc": "💥 10 bombas, morde −2, ⚡ 3 raios e 🕸️ teia"
     },
     {
       "name": "Moto",
@@ -112,11 +117,14 @@
       "team": "villain",
       "tier": "mega",
       "effects": {
-        "bombs": 20,
-        "attack": 4
+        "bombs": 16,
+        "attack": 4,
+        "bolt": 4,
+        "ice": 2,
+        "web": 2
       },
       "maxPerEvent": 40,
-      "desc": "20 bombas + atropela −4 da cobra"
+      "desc": "🏍️ 16 bombas, atropela −4, ⚡ 4 raios, 🧊 2 gelos e 🕸️ 2 teias"
     },
     {
       "name": "Leão",
@@ -132,8 +140,14 @@
         "bombs": 40,
         "attack": 6
       },
+      "combo": {
+        "bolt": 6,
+        "ice": 4,
+        "web": 4,
+        "skull": 3
+      },
       "maxPerEvent": 60,
-      "desc": "👑 40 bombas + mordida −6"
+      "desc": "👑 SUPREMO: 40 bombas, mordida −6, ⚡ raios, 🧊 gelo, 🕸️ teias e ☠️ 3 caveiras"
     },
     {
       "name": "GG",
@@ -174,9 +188,10 @@
       "team": "hero",
       "tier": "normal",
       "effects": {
-        "grow": 3
+        "grow": 3,
+        "diamond": 1
       },
-      "desc": "a cobra cresce +3 na hora"
+      "desc": "cresce +3 e solta 💎 1 diamante"
     },
     {
       "name": "Coração nas Mãos",
@@ -189,10 +204,11 @@
       "team": "hero",
       "tier": "normal",
       "effects": {
-        "food": 4,
-        "grow": 1
+        "food": 3,
+        "grow": 1,
+        "diamond": 2
       },
-      "desc": "+4 comidas e cresce +1"
+      "desc": "+3 comidas, cresce +1 e 💎 2 diamantes"
     },
     {
       "name": "Cisne",
@@ -204,9 +220,11 @@
       "team": "hero",
       "tier": "mega",
       "effects": {
-        "clearBombs": true
+        "clearBombs": true,
+        "diamond": 3,
+        "clock": 1
       },
-      "desc": "✨ limpa TODAS as bombas"
+      "desc": "✨ limpa TODAS as bombas, 💎 3 diamantes e ⏱️ turbo"
     },
     {
       "name": "Galáxia",
@@ -220,9 +238,11 @@
       "tier": "mega",
       "effects": {
         "clearBombs": true,
-        "shieldSec": 30
+        "shieldSec": 30,
+        "star": 1,
+        "magnet": 1
       },
-      "desc": "🛡️ escudo 30 s + limpa as bombas"
+      "desc": "🛡️ escudo 30 s, limpa as bombas, ⭐ estrela e 🧲 ímã"
     },
     {
       "name": "Foguete",
@@ -236,9 +256,12 @@
       "effects": {
         "grow": 10,
         "food": 6,
-        "shieldSec": 30
+        "shieldSec": 30,
+        "diamond": 5,
+        "star": 2,
+        "clock": 2
       },
-      "desc": "🚀 cresce +10, +6 comidas, escudo 30 s"
+      "desc": "🚀 cresce +10, 6 comidas, escudo 30 s, 💎 5 diamantes, ⭐ 2 estrelas e ⏱️ turbo"
     },
     {
       "name": "Universo TikTok",
@@ -256,7 +279,15 @@
         "clearBombs": true,
         "shieldSec": 60
       },
-      "desc": "🌌 SUPREMO: +15, 10 comidas, limpa e escudo 60 s"
+      "combo": {
+        "clearAll": true,
+        "diamond": 8,
+        "star": 3,
+        "magnet": 2,
+        "clock": 3,
+        "starSec": 15
+      },
+      "desc": "🌌 SUPREMO: limpa TUDO, +15, 10 comidas, 💎 chuva de diamantes, ⭐ invencível e 🧲 ímã"
     }
   ]
 }

@@ -341,8 +341,10 @@ body.obs .pill-ws.on { display: none; }
   gap: 0.15rem;
 }
 .score-col .lbl {
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
+  /* [revisão] VITÓRIAS / DERROTAS: 0.72rem = ~13,8 px equivalentes a 1080. Sobe para ~19 px.
+     O letter-spacing cai um pouco para o rótulo continuar cabendo na mesma linha. */
+  font-size: 0.98rem;
+  letter-spacing: 0.1em;
   font-weight: 800;
   color: var(--muted);
 }
@@ -539,12 +541,17 @@ body.obs .pill-ws.on { display: none; }
   50% { opacity: 1; transform: scale(1.15) rotate(24deg); }
 }
 @keyframes mega-glow { from { filter: brightness(1); } to { filter: brightness(1.25); } }
+/* [revisão] O card entrava de translateX(-120%): como .gift-slot fica a apenas --pad-x (~5cqw) da
+   borda, isso o punha ~107 % da própria largura FORA do palco, e #safe { overflow:hidden } o clipava.
+   Resultado medido: ~89 % do trajeto de 0,45 s acontecia invisível atrás da barra preta — o card
+   "aparecia do nada". O deslocamento agora é uma fração da ALTURA DO PALCO (rem = 1 % da altura),
+   não da largura do card, então o movimento inteiro acontece dentro do palco em qualquer escala. */
 @keyframes card-in {
-  from { opacity: 0; transform: translateX(-120%) scale(0.9); }
+  from { opacity: 0; transform: translateX(-1.6rem) scale(0.9); }
   to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 @keyframes card-out {
-  to { opacity: 0; transform: translateX(-40%) scale(0.85); }
+  to { opacity: 0; transform: translateX(-1.2rem) scale(0.85); }
 }
 .gift-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
 .gift-who { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
@@ -757,6 +764,20 @@ body.obs .pill-ws.on { display: none; }
   letter-spacing: 0.09em;
   white-space: nowrap;
 }
+/* [persist] Escopo da barra: deixa claro que o duelo é DA RODADA (zera a cada rodada). */
+.battle-scope {
+  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted, #94a3b8);
+  opacity: 0.9;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .battle-team.villain { color: var(--rose); text-shadow: 0 0 0.6rem rgba(251, 113, 133, 0.6), 0 2px 2px #000; }
 .battle-team.hero { color: var(--emerald); text-shadow: 0 0 0.6rem rgba(52, 211, 153, 0.6), 0 2px 2px #000; }
 .battle-vs {
@@ -814,7 +835,10 @@ body.obs .pill-ws.on { display: none; }
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.8rem;
+  /* [revisão] Total de moedas de cada time: é o placar que motiva o presente seguinte.
+     0.8rem dava ~15,4 px equivalentes a 1080; sobe para ~21 px, no limite do que a barra comporta. */
+  font-size: 1.08rem;
+  font-weight: 900;
   line-height: 1;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 0.4rem rgba(0, 0, 0, 0.75);
@@ -873,17 +897,24 @@ body.obs .pill-ws.on { display: none; }
   font-size: 0.62rem;
   filter: drop-shadow(0 1px 1px #000);
 }
+/* [revisão] LEGIBILIDADE EM VÍDEO COMPRIMIDO.
+   Medido no palco real: com 1rem = 1 % da altura, 0.78rem dava ~17 px equivalentes a 1080 de
+   largura — abaixo do mínimo de ~22 px que sobrevive à compressão do TikTok. Os nomes e as moedas
+   do ranking são o que faz a pessoa mandar presente, então sobem para o topo do orçamento
+   vertical disponível (a faixa 64–72 % tinha folga negativa; ela veio do .legend, mais abaixo).
+   font-weight sobe junto: peso alto sobrevive melhor ao macroblocking que tamanho puro. */
 .team-nick {
   flex: 1;
   min-width: 0;
-  font-size: 0.78rem;
+  font-size: 0.98rem;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.team-row.rank-1 .team-nick { font-size: 0.88rem; font-weight: 900; }
-.team-coins { font-size: 0.74rem; white-space: nowrap; }
-.team-row.rank-1 .team-coins { font-size: 0.82rem; }
+.team-row.rank-1 .team-nick { font-size: 1.12rem; font-weight: 900; }
+.team-coins { font-size: 0.95rem; font-weight: 800; white-space: nowrap; }
+.team-row.rank-1 .team-coins { font-size: 1.05rem; }
 .team-col.villain .team-coins { color: #fda4af; }
 .team-col.hero .team-coins { color: #6ee7b7; }
 .team-empty {
@@ -954,15 +985,26 @@ body.obs .pill-ws.on { display: none; }
 
 /* Compact gift legend (replaces the old CTA line) ---------------------------------- */
 .legend {
+  /* [revisão] A legenda era o 3º filho de um flex column cuja .glass já ocupava a faixa inteira
+     (66,7 px de 66,8 px): ela transbordava 5,8 px para dentro da faixa de metas. Tirando-a do
+     fluxo, ela deixa de empurrar o layout e passa a flutuar rente à base da faixa — a chave
+     continua legível e a faixa 64–72 % volta a respeitar o próprio limite. */
+  position: absolute;
+  left: 50%;
+  bottom: calc(0.1 * var(--u));
+  transform: translateX(-50%);
   align-self: center;
   display: inline-flex;
   align-items: center;
-  gap: 0.45em;
-  font-size: 0.8rem;
+  gap: 0.4em;
+  /* [revisão] A legenda é uma chave ESTÁTICA: quem assiste lê uma vez e ignora. Ela era quem
+     estourava a faixa 64–72 % (folga medida: -6,4 px, invadindo a faixa de metas em 0,77 %).
+     Encolhe aqui para financiar o aumento dos nomes/moedas do ranking, que são lidos o tempo todo. */
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.02em;
-  line-height: 1.2;
-  padding: 0.08rem 0.9rem 0.12rem;
+  line-height: 1.1;
+  padding: 0.05rem 0.7rem 0.07rem;
   border-radius: 999px;
   color: var(--text);
   background: rgba(8, 12, 26, 0.6);

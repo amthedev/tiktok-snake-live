@@ -32,6 +32,12 @@ const DEFAULTS = Object.freeze({
   maxFoodOnBoard: 30,
   shieldMaxSec: 120,        // cap for stacked hero shields
   shortcutMaxFill: 0.5,
+  // [itens] Balanceamento da bomba. Estes dois mantêm o comportamento histórico do SPEC para
+  // quem cria um GameState "pelado" (testes, ferramentas); o balanceamento REAL da live vem do
+  // config (public/js/config.js): bombShrink 4 + bombShrinkPct 0.2 + startLength 10.
+  // Ver docs/DECISOES-LIVE.md para os números medidos.
+  bombShrinkPct: 0,         // dano extra = floor(tamanho * pct); 0 = comportamento antigo
+  startLength: 3,           // tamanho inicial da cobra (entra como crédito de crescimento)
 });
 
 const MIN_LENGTH = 3;
@@ -39,6 +45,46 @@ const MAX_BOMB_QUEUE = 1000;
 const OCC_SNAKE = 1;
 const OCC_BOMB = 2;
 const OCC_FOOD = 4;
+const OCC_ITEM = 8;           // [itens] qualquer um dos itens especiais novos
+const MAGNET_STEP_SEC = 0.28; // [itens] 🧲 intervalo entre passos das comidas atraídas
+
+/**
+ * [itens] Catálogo dos itens especiais (pedido do cliente: "mais coisas além de bomba").
+ *
+ * Cada item tem pavio curto (aparece e some sozinho), um limite por tipo no tabuleiro e um
+ * efeito próprio. Os itens de DANO não são desviados pela IA — ela continua indo atrás da
+ * comida e bate neles de propósito; é isso que dá a graça. Os de BÔNUS também não são
+ * caçados: a IA persegue maçã/comida dourada e pega o resto no caminho.
+ *
+ *  kind    → chave usada no evento e no renderer
+ *  team    → 'villain' (dano) | 'hero' (bônus)
+ *  fuseSec → pavio padrão (0 = eterno)
+ *  max     → quantos podem existir ao mesmo tempo
+ */
+export const ITEM_KINDS = Object.freeze({
+  // 😈 DANO ------------------------------------------------------------------------------
+  bolt:    { kind: 'bolt',    team: 'villain', fuseSec: 7,  max: 6, emoji: '⚡',  label: 'Raio' },
+  ice:     { kind: 'ice',     team: 'villain', fuseSec: 14, max: 4, emoji: '🧊', label: 'Gelo' },
+  web:     { kind: 'web',     team: 'villain', fuseSec: 16, max: 4, emoji: '🕸️', label: 'Teia' },
+  skull:   { kind: 'skull',   team: 'villain', fuseSec: 10, max: 3, emoji: '☠️', label: 'Caveira' },
+  // 😇 BÔNUS -----------------------------------------------------------------------------
+  diamond: { kind: 'diamond', team: 'hero',    fuseSec: 20, max: 8, emoji: '💎', label: 'Diamante' },
+  star:    { kind: 'star',    team: 'hero',    fuseSec: 12, max: 3, emoji: '⭐', label: 'Estrela' },
+  magnet:  { kind: 'magnet',  team: 'hero',    fuseSec: 12, max: 2, emoji: '🧲', label: 'Ímã' },
+  clock:   { kind: 'clock',   team: 'hero',    fuseSec: 14, max: 3, emoji: '⏱️', label: 'Relógio' },
+});
+
+/** [itens] Quanto cada item faz quando a cobra encosta nele. */
+const ITEM_EFFECT = Object.freeze({
+  bolt:    { shrink: 8 },                    // encolhe muito, mas o pavio é curtíssimo
+  skull:   { shrink: 14 },                   // dano pesado — só em presentes grandes
+  ice:     { slowSec: 5, slowFactor: 0.45 },
+  web:     { stuckSteps: 6 },
+  diamond: { grow: 5 },
+  star:    { starSec: 8 },                   // invencível: bombas e itens de dano não machucam
+  magnet:  { magnetSec: 8 },                 // puxa as comidas para perto da cabeça
+  clock:   { fastSec: 8, fastFactor: 1.8 },
+});
 
 /**
  * Deterministic PRNG (mulberry32). Returns a function producing floats in [0, 1).
@@ -85,6 +131,11 @@ export class GameState {
       speedPerSegment: Math.max(0, numberOr(cfg.speedPerSegment, DEFAULTS.speedPerSegment)),
       maxSpeed: Math.max(0.1, numberOr(cfg.maxSpeed, DEFAULTS.maxSpeed)),
       bombShrink: Math.max(1, Math.trunc(numberOr(cfg.bombShrink, DEFAULTS.bombShrink))),
+      // [itens] Dano da bomba = bombShrink + floor(tamanho * bombShrinkPct). O cliente achou a
+      // bomba fraca; medir mostrou que só aumentar o valor fixo acaba com a rodada em ~3 s,
+      // então o dano acompanha o tamanho e a cobra começa maior (startLength).
+      bombShrinkPct: Math.min(1, Math.max(0, numberOr(cfg.bombShrinkPct, DEFAULTS.bombShrinkPct))),
+      startLength: Math.max(MIN_LENGTH, Math.trunc(numberOr(cfg.startLength, DEFAULTS.startLength))),
       bombFuseSec: Math.max(0, numberOr(cfg.bombFuseSec, DEFAULTS.bombFuseSec)),
       maxBombsOnBoard: Math.max(0, Math.trunc(numberOr(cfg.maxBombsOnBoard, DEFAULTS.maxBombsOnBoard))),
       foodFuseSec: Math.max(0, numberOr(cfg.foodFuseSec, DEFAULTS.foodFuseSec)),
@@ -100,7 +151,11 @@ export class GameState {
     this._w = size;
     this._h = size;
     this._n = size * size;
+    // [ia] Variedade de percurso: cada rodada roda sobre um ciclo hamiltoniano novo
+    // (ver _pickCycle). A rodada 1 mantém o ciclo canônico, então um estado recém-criado
+    // continua reproduzível exatamente como antes.
     this._cycle = buildCycle(this._w, this._h);
+    this._cycleSeed = null;
     this._aiOpts = { shortcutMaxFill: this._config.shortcutMaxFill, allowShortcuts: true };
 
     this._roundId = 0;
@@ -112,6 +167,11 @@ export class GameState {
     this._bombQueue = []; // FIFO of { meta }
     this._food = new Map(); // id → { id, cell, x, z, fuseLeft, meta } — hero bonus food
     this._foodSeq = 0;
+    // [itens] Itens especiais (raio, gelo, teia, caveira, diamante, estrela, ímã, relógio).
+    this._items = new Map();                // id → { id, kind, cell, x, z, fuseLeft, meta }
+    this._itemSeq = 0;
+    this._itemCounts = Object.create(null); // kind → quantos estão no tabuleiro
+    this._magnetAcc = 0;
     this._snakeCache = null; // memoised snapshot arrays, invalidated on every body change
     this._setupRound();
   }
@@ -128,12 +188,53 @@ export class GameState {
   get phase() { return this._phase; }
   get roundId() { return this._roundId; }
 
+  /**
+   * [itens] Dano atual de uma bomba: bombShrink + floor(tamanho * bombShrinkPct).
+   * Escala com a cobra para a bomba nunca parecer fraca (pedido do cliente) sem transformar
+   * cada rodada num estouro instantâneo — números medidos em docs/DECISOES-LIVE.md.
+   */
+  get bombDamage() {
+    const { bombShrink, bombShrinkPct } = this._config;
+    return bombShrink + Math.floor(this._snake.length * bombShrinkPct);
+  }
+
   // ------------------------------------------------------------------ round lifecycle
 
   /** New round: roundId++, snake of length 3 at the centre heading right, bombs reset. */
   reset() {
     this._roundId += 1;
+    this._pickCycle(); // [ia] percurso novo a cada rodada (ver _pickCycle)
     return this._setupRound();
+  }
+
+  /**
+   * [ia] Variedade de percurso (pedido do cliente 2026-09-04: "que essa minhoca não faça o
+   * mesmo percurso sempre"). Cada rodada roda sobre um ciclo hamiltoniano NOVO, sorteado com
+   * o rng injetado (então os testes continuam determinísticos) e diferente do da rodada
+   * anterior.
+   *
+   * A garantia de nunca colidir vem do invariante de ordem no ciclo, NÃO do formato do ciclo:
+   * qualquer ciclo hamiltoniano válido serve, e buildCycle só devolve ciclos válidos. A
+   * vitória continua garantida porque o ciclo cobre o tabuleiro inteiro.
+   *
+   * Também sorteia a agressividade dos atalhos numa faixa em volta do configurado — rodadas
+   * diferentes "cortam caminho" mais ou menos, o que muda o ritmo sem mexer na segurança
+   * (o atalho já passa pela regra de segurança; shortcutMaxFill só diz até que enchimento do
+   * tabuleiro ele é permitido).
+   */
+  _pickCycle() {
+    const prev = this._cycleSeed;
+    let seed = 0;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      seed = (Math.floor(this._rng() * 0xffffffff) >>> 0) || 1;
+      if (seed !== prev) break;
+    }
+    this._cycleSeed = seed;
+    this._cycle = buildCycle(this._w, this._h, { seed });
+    // Faixa de atalho: 60%..115% do configurado, limitada a [0, 1].
+    const base = this._config.shortcutMaxFill;
+    const factor = 0.6 + this._rng() * 0.55;
+    this._aiOpts = { shortcutMaxFill: Math.min(1, Math.max(0, base * factor)), allowShortcuts: true };
   }
 
   /** 'countdown' → 'playing'. Returns [{ type: 'start', roundId }] (empty if not in countdown). */
@@ -151,6 +252,15 @@ export class GameState {
     this._foodEaten = 0;
     this._growthPending = 0;
     this._shieldLeft = 0;
+    // [itens] estados temporários dos itens novos
+    this._starLeft = 0;    // ⭐ invencibilidade
+    this._slowLeft = 0;    // 🧊 lentidão
+    this._fastLeft = 0;    // ⏱️ velocidade
+    this._magnetLeft = 0;  // 🧲 atração das comidas
+    this._stuckSteps = 0;  // 🕸️ passos presos
+    this._magnetAcc = 0;
+    this._items.clear();
+    this._itemCounts = Object.create(null);
     this._food.clear();
     this._occ.fill(0);
     this._bombs.clear();
@@ -161,6 +271,11 @@ export class GameState {
     this._startedAt = this._now();
     this._endedAt = null;
     this._placeSnake();
+    // [itens] Vantagem inicial: a cobra "nasce" com startLength. Entra como crédito de
+    // crescimento (realizado nos primeiros passos seguros), então o invariante do ciclo
+    // continua valendo exatamente como antes — nada é colocado à força no tabuleiro.
+    const headStart = Math.max(0, this._config.startLength - this._snake.length);
+    if (headStart > 0) this._growthPending = Math.min(headStart, this._n - this._snake.length);
     return this._ensureApple();
   }
 
@@ -204,6 +319,15 @@ export class GameState {
     const w = this._w;
     const head = snake[0];
 
+    // [itens] 🕸️ Teia: a cobra fica presa por N passos. Ela NÃO se move (nem cresce, nem
+    // encolhe), só perde o turno — o tabuleiro continua vivo porque tick() segue rodando.
+    if (this._stuckSteps > 0) {
+      this._stuckSteps -= 1;
+      events.push({ type: 'web_stuck', stepsLeft: this._stuckSteps });
+      if (this._stuckSteps === 0) events.push({ type: 'web_end' });
+      return events;
+    }
+
     // The AI is blind to bombs on purpose: bombs on the route are hit, not dodged.
     // It chases the NEAREST food along the cycle (main apple or a hero bonus food).
     let move = nextMove(this._cycle, snake, this._nearestFood(head), this._aiOpts);
@@ -216,6 +340,7 @@ export class GameState {
     const eatsApple = cell === this._apple;
     const food = this._foodAt(cell);
     const bomb = this._bombAt(cell);
+    const item = this._itemAt(cell); // [itens] item especial pisado neste passo
 
     // Growth is only realised when it cannot break the body-ordering invariant: keeping the
     // tail is safe iff distFwd(head, cell) < distFwd(head, tail) (the grow window). Food or
@@ -243,6 +368,7 @@ export class GameState {
     }
     if (bomb) this._removeBomb(bomb);
     if (food) this._removeFood(food);
+    if (item) this._removeItem(item); // [itens]
     snake.unshift(cell);
     this._occ[cell] |= OCC_SNAKE;
     this._snakeCache = null;
@@ -258,19 +384,24 @@ export class GameState {
       this._foodEaten += 1;
       events.push({ type: 'eat_food', id: food.id, x, z, foodEaten: this._foodEaten, length: snake.length, meta: food.meta });
     }
+    // [itens] Item especial pisado: aplica o efeito (pode ser fatal, como a bomba).
+    if (item && this._applyItemPickup(item, x, z, events)) return events;
     if (snake.length >= this._n) {
       this._endRound('won', events);
       return events;
     }
     if (bomb) {
       this._bombsEaten += 1;
-      if (this._shieldLeft > 0) {
+      // [itens] A ⭐ estrela protege igual ao escudo (invencibilidade temporária).
+      if (this._shieldLeft > 0 || this._starLeft > 0) {
         // Hero shield: the bomb pops harmlessly.
         events.push({ type: 'eat_bomb', id: bomb.id, x, z, length: snake.length, shrink: 0, fatal: false, shielded: true });
       } else {
         // Losing all its size is the only defeat: growth credit is eaten first, then body
         // segments; if the full shrink would leave the snake below MIN_LENGTH, it dies.
-        let toShrink = this._config.bombShrink;
+        // [itens] O dano cresce junto com a cobra, então a bomba nunca é "fraquinha" numa
+        // cobra grande nem instantaneamente fatal numa cobra pequena.
+        let toShrink = this.bombDamage;
         const fromCredit = Math.min(this._growthPending, toShrink);
         this._growthPending -= fromCredit;
         toShrink -= fromCredit;
@@ -303,6 +434,40 @@ export class GameState {
     if (this._shieldLeft > 0) {
       this._shieldLeft = Math.max(0, this._shieldLeft - dtSec);
       if (this._shieldLeft === 0) events.push({ type: 'shield_end' });
+    }
+    // [itens] Efeitos temporários dos itens novos: cada um avisa quando acaba, para o
+    // renderer/HUD desligarem o visual correspondente.
+    if (this._starLeft > 0) {
+      this._starLeft = Math.max(0, this._starLeft - dtSec);
+      if (this._starLeft === 0) events.push({ type: 'star_end' });
+    }
+    if (this._slowLeft > 0) {
+      this._slowLeft = Math.max(0, this._slowLeft - dtSec);
+      if (this._slowLeft === 0) events.push({ type: 'slow_end' });
+    }
+    if (this._fastLeft > 0) {
+      this._fastLeft = Math.max(0, this._fastLeft - dtSec);
+      if (this._fastLeft === 0) events.push({ type: 'fast_end' });
+    }
+    if (this._magnetLeft > 0) {
+      this._magnetLeft = Math.max(0, this._magnetLeft - dtSec);
+      events.push(...this._magnetPull(dtSec));
+      if (this._magnetLeft === 0) events.push({ type: 'magnet_end' });
+    }
+    // [itens] Pavio dos itens especiais.
+    if (this._items.size > 0) {
+      let goneItems = null;
+      for (const it of this._items.values()) {
+        if (it.fuseLeft === Infinity) continue;
+        it.fuseLeft -= dtSec;
+        if (it.fuseLeft <= 0) (goneItems ??= []).push(it);
+      }
+      if (goneItems) {
+        for (const it of goneItems) {
+          this._removeItem(it);
+          events.push({ type: 'item_expire', id: it.id, kind: it.kind, x: it.x, z: it.z });
+        }
+      }
     }
     if (this._bombs.size > 0) {
       let expired = null;
@@ -390,6 +555,73 @@ export class GameState {
     return events;
   }
 
+  /**
+   * [itens] Coloca até `count` itens especiais do tipo `kind` em células livres.
+   * Respeita o limite por tipo (ITEM_KINDS[kind].max) e o pavio próprio de cada item; o que
+   * não couber é descartado (não entra em fila, ao contrário das bombas — item que aparece
+   * tarde demais não faz sentido para o público).
+   *
+   * @param {string} kind uma das chaves de ITEM_KINDS
+   * @param {number} count quantos
+   * @param {object} [meta] info do presente (nome, avatar…) copiada para cada item
+   * @returns {object[]} eventos item_spawn
+   */
+  spawnItem(kind, count = 1, meta = {}) {
+    if (this._phase === 'won' || this._phase === 'lost') return [];
+    const def = ITEM_KINDS[kind];
+    if (!def) return [];
+    let c = Math.trunc(numberOr(count, 0));
+    if (c <= 0) return [];
+    const events = [];
+    const metaCopy = meta && typeof meta === 'object' ? { ...meta } : {};
+    while (c > 0 && (this._itemCounts[kind] || 0) < def.max) {
+      const ev = this._placeItem(def, metaCopy);
+      if (!ev) break;
+      events.push(ev);
+      c--;
+    }
+    return events;
+  }
+
+  /** [itens] ⭐ Estrela: invencibilidade por `seconds` (acumula, com o mesmo teto do escudo). */
+  applyStar(seconds) { return this._applyTimed('_starLeft', seconds, 'star_start'); }
+
+  /** [itens] 🧊 Gelo: deixa a cobra lenta por `seconds`. */
+  applySlow(seconds) { return this._applyTimed('_slowLeft', seconds, 'slow_start'); }
+
+  /** [itens] ⏱️ Relógio: deixa a cobra rápida por `seconds`. */
+  applyFast(seconds) { return this._applyTimed('_fastLeft', seconds, 'fast_start'); }
+
+  /** [itens] 🧲 Ímã: atrai as comidas para perto da cabeça por `seconds`. */
+  applyMagnet(seconds) { return this._applyTimed('_magnetLeft', seconds, 'magnet_start'); }
+
+  /** [itens] Base comum dos efeitos por tempo (acumulam e respeitam shieldMaxSec). */
+  _applyTimed(field, seconds, type) {
+    if (this._phase === 'won' || this._phase === 'lost') return [];
+    const sec = Math.max(0, numberOr(seconds, 0));
+    if (sec === 0) return [];
+    this[field] = Math.min(this[field] + sec, this._config.shieldMaxSec);
+    return [{ type, seconds: this[field] }];
+  }
+
+  /** [itens] 🕸️ Teia: prende a cobra por `steps` passos (ela perde o turno, não encolhe). */
+  applyWeb(steps) {
+    if (this._phase === 'won' || this._phase === 'lost') return [];
+    const n = Math.max(0, Math.trunc(numberOr(steps, 0)));
+    if (n === 0) return [];
+    this._stuckSteps = Math.min(this._stuckSteps + n, 30);
+    return [{ type: 'web_start', steps: this._stuckSteps }];
+  }
+
+  /** [itens] Remove todos os itens especiais do tabuleiro (usado pelo efeito de limpeza). */
+  clearItems() {
+    const cleared = [];
+    for (const it of this._items.values()) cleared.push({ id: it.id, kind: it.kind });
+    if (cleared.length === 0) return [];
+    for (const it of Array.from(this._items.values())) this._removeItem(it);
+    return [{ type: 'item_clear', items: cleared, ids: cleared.map((c) => c.id) }];
+  }
+
   /** Hero effect: grow the snake by `amount` segments (realised over the next safe steps). */
   growSnake(amount) {
     if (this._phase === 'won' || this._phase === 'lost') return [];
@@ -462,9 +694,15 @@ export class GameState {
     for (const f of this._food.values()) {
       foods[fi++] = { id: f.id, x: f.x, z: f.z, fuseLeft: f.fuseLeft, meta: f.meta };
     }
+    // [itens]
+    const items = new Array(this._items.size);
+    let ii = 0;
+    for (const it of this._items.values()) {
+      items[ii++] = { id: it.id, kind: it.kind, x: it.x, z: it.z, fuseLeft: it.fuseLeft, meta: it.meta };
+    }
     const length = this._snake.length;
     const endedAt = this._endedAt;
-    return {
+    const snap = {
       roundId: this._roundId,
       phase: this._phase,
       w,
@@ -481,7 +719,9 @@ export class GameState {
       shieldLeft: this._shieldLeft,
       growthPending: this._growthPending,
       // One more bomb kills when the shrink (after credit) would push the length below MIN_LENGTH.
-      danger: this._shieldLeft <= 0 && length + this._growthPending - this._config.bombShrink < MIN_LENGTH,
+      // [itens] usa o dano REAL (escalado) e considera a estrela além do escudo.
+      danger: this._shieldLeft <= 0 && this._starLeft <= 0
+        && length + this._growthPending - this.bombDamage < MIN_LENGTH,
       apples: this._apples,
       bombsEaten: this._bombsEaten,
       foodEaten: this._foodEaten,
@@ -493,6 +733,21 @@ export class GameState {
       durationMs: Math.max(0, (endedAt ?? this._now()) - this._startedAt),
       lastMove: this._lastMove ? { ...this._lastMove } : null,
     };
+    // [itens] Os campos dos itens novos entram SÓ quando há item no tabuleiro, algum efeito
+    // ligado ou o dano escalado configurado. Assim o snapshot de uma partida sem itens continua
+    // exatamente com a forma do SPEC §4.4 (nada quebra para quem já lia esse objeto), e o
+    // overlay recebe o extra na hora em que ele existe de verdade.
+    if (items.length > 0 || this._starLeft > 0 || this._slowLeft > 0 || this._fastLeft > 0
+        || this._magnetLeft > 0 || this._stuckSteps > 0 || this._config.bombShrinkPct > 0) {
+      snap.items = items;
+      snap.starLeft = this._starLeft;
+      snap.slowLeft = this._slowLeft;
+      snap.fastLeft = this._fastLeft;
+      snap.magnetLeft = this._magnetLeft;
+      snap.stuckSteps = this._stuckSteps;
+      snap.bombDamage = this.bombDamage;
+    }
+    return snap;
   }
 
   _buildSnakeCache() {
@@ -510,10 +765,17 @@ export class GameState {
     return this._snakeCache;
   }
 
+  /**
+   * Velocidade em passos/s. [itens] O 🧊 gelo divide e o ⏱️ relógio multiplica; os dois podem
+   * estar ativos ao mesmo tempo (um cancela parte do outro) e o resultado nunca fica <= 0.
+   */
   _speedFor(length) {
     const { baseSpeed, speedPerSegment, maxSpeed } = this._config;
     const raw = baseSpeed + (length - MIN_LENGTH) * speedPerSegment;
-    return Math.min(maxSpeed, Math.max(baseSpeed, raw));
+    let speed = Math.min(maxSpeed, Math.max(baseSpeed, raw));
+    if (this._slowLeft > 0) speed *= ITEM_EFFECT.ice.slowFactor;
+    if (this._fastLeft > 0) speed *= ITEM_EFFECT.clock.fastFactor;
+    return Math.max(0.5, speed);
   }
 
   // ------------------------------------------------------------------ internals
@@ -606,6 +868,152 @@ export class GameState {
     this._food.set(food.id, food);
     this._occ[cell] |= OCC_FOOD;
     return { type: 'food_spawn', id: food.id, x: food.x, z: food.z, fuseSec: food.fuseLeft, meta };
+  }
+
+  // ---------------------------------------------------------------- [itens] itens especiais
+
+  _itemAt(cell) {
+    if ((this._occ[cell] & OCC_ITEM) === 0) return null;
+    for (const it of this._items.values()) if (it.cell === cell) return it;
+    return null;
+  }
+
+  _removeItem(item) {
+    if (!this._items.delete(item.id)) return;
+    this._occ[item.cell] &= ~OCC_ITEM;
+    this._itemCounts[item.kind] = Math.max(0, (this._itemCounts[item.kind] || 0) - 1);
+  }
+
+  _placeItem(def, meta) {
+    const cell = this._pickFreeCell(this._frontCell());
+    if (cell < 0) return null;
+    const w = this._w;
+    const fuse = def.fuseSec;
+    const item = {
+      id: 'i' + (++this._itemSeq),
+      kind: def.kind,
+      cell,
+      x: cell % w,
+      z: Math.floor(cell / w),
+      fuseLeft: fuse > 0 ? fuse : Infinity,
+      meta,
+    };
+    this._items.set(item.id, item);
+    this._occ[cell] |= OCC_ITEM;
+    this._itemCounts[def.kind] = (this._itemCounts[def.kind] || 0) + 1;
+    return {
+      type: 'item_spawn', id: item.id, kind: item.kind, team: def.team,
+      x: item.x, z: item.z, fuseSec: item.fuseLeft, meta,
+    };
+  }
+
+  /**
+   * [itens] Efeito de encostar num item. Empurra os eventos em `events`.
+   * @returns {boolean} true quando o item MATOU a cobra (a rodada já foi encerrada)
+   */
+  _applyItemPickup(item, x, z, events) {
+    const fx = ITEM_EFFECT[item.kind] || {};
+    const snake = this._snake;
+    const guarded = this._shieldLeft > 0 || this._starLeft > 0;
+    const base = { type: 'eat_item', id: item.id, kind: item.kind, x, z, meta: item.meta };
+
+    // --- itens de DANO -----------------------------------------------------------------
+    if (fx.shrink > 0) {
+      if (guarded) {
+        events.push({ ...base, shielded: true, shrink: 0, fatal: false, length: snake.length });
+        return false;
+      }
+      let toShrink = fx.shrink;
+      const fromCredit = Math.min(this._growthPending, toShrink);
+      this._growthPending -= fromCredit;
+      toShrink -= fromCredit;
+      const fatal = snake.length - toShrink < MIN_LENGTH;
+      const shrink = fatal ? snake.length - MIN_LENGTH : toShrink;
+      for (let i = 0; i < shrink; i++) {
+        const c = snake.pop();
+        this._occ[c] &= ~OCC_SNAKE;
+      }
+      this._snakeCache = null;
+      events.push({ ...base, shielded: false, shrink, fromCredit, fatal, length: snake.length });
+      if (fatal) { this._endRound('lost', events); return true; }
+      return false;
+    }
+    if (fx.slowSec > 0) {
+      if (guarded) { events.push({ ...base, shielded: true }); return false; }
+      events.push({ ...base, shielded: false, seconds: fx.slowSec });
+      events.push(...this.applySlow(fx.slowSec));
+      return false;
+    }
+    if (fx.stuckSteps > 0) {
+      if (guarded) { events.push({ ...base, shielded: true }); return false; }
+      events.push({ ...base, shielded: false, steps: fx.stuckSteps });
+      events.push(...this.applyWeb(fx.stuckSteps));
+      return false;
+    }
+    // --- itens de BÔNUS ----------------------------------------------------------------
+    if (fx.grow > 0) {
+      events.push({ ...base, grow: fx.grow });
+      events.push(...this.growSnake(fx.grow));
+      return false;
+    }
+    if (fx.starSec > 0) {
+      events.push({ ...base, seconds: fx.starSec });
+      events.push(...this.applyStar(fx.starSec));
+      return false;
+    }
+    if (fx.magnetSec > 0) {
+      events.push({ ...base, seconds: fx.magnetSec });
+      events.push(...this.applyMagnet(fx.magnetSec));
+      return false;
+    }
+    if (fx.fastSec > 0) {
+      events.push({ ...base, seconds: fx.fastSec });
+      events.push(...this.applyFast(fx.fastSec));
+      return false;
+    }
+    events.push(base);
+    return false;
+  }
+
+  /**
+   * [itens] 🧲 Ímã: enquanto ativo, cada comida dourada dá um passo em direção à cabeça (no
+   * máximo um a cada MAGNET_STEP_SEC), sempre para uma célula LIVRE. Nunca move nada para cima
+   * da cobra, de uma bomba ou de outro item, então não existe como quebrar o invariante.
+   */
+  _magnetPull(dtSec) {
+    this._magnetAcc = (this._magnetAcc || 0) + dtSec;
+    if (this._magnetAcc < MAGNET_STEP_SEC || this._food.size === 0) return [];
+    this._magnetAcc = 0;
+    const w = this._w;
+    const head = this._snake[0];
+    const hx = head % w;
+    const hz = Math.floor(head / w);
+    const events = [];
+    for (const f of this._food.values()) {
+      const dx = hx - f.x;
+      const dz = hz - f.z;
+      if (dx === 0 && dz === 0) continue;
+      // Anda no eixo mais distante primeiro (movimento em L, sempre 1 célula por vez).
+      const steps = Math.abs(dx) >= Math.abs(dz)
+        ? [[Math.sign(dx), 0], [0, Math.sign(dz)]]
+        : [[0, Math.sign(dz)], [Math.sign(dx), 0]];
+      for (const [sx, sz] of steps) {
+        if (sx === 0 && sz === 0) continue;
+        const nx = f.x + sx;
+        const nz = f.z + sz;
+        if (nx < 0 || nz < 0 || nx >= w || nz >= this._h) continue;
+        const cell = nz * w + nx;
+        if (this._occ[cell] !== 0 || cell === this._apple) continue;
+        this._occ[f.cell] &= ~OCC_FOOD;
+        f.cell = cell;
+        f.x = nx;
+        f.z = nz;
+        this._occ[cell] |= OCC_FOOD;
+        events.push({ type: 'food_move', id: f.id, x: nx, z: nz });
+        break;
+      }
+    }
+    return events;
   }
 
   _removeBomb(bomb) {

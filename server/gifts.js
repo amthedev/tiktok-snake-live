@@ -15,10 +15,23 @@ import path from 'node:path';
 const TEAMS = new Set(['villain', 'hero']);
 const TIERS = new Set(['normal', 'mega', 'supreme']);
 const MODES = new Set(['all', 'allowlist']);
-const EFFECT_KEYS = ['bombs', 'food', 'grow', 'attack', 'shieldSec', 'clearBombs'];
+// [itens] Efeitos novos: itens especiais (raio, gelo, teia, caveira, diamante, estrela, ímã,
+// relógio) e os tempos de estrela/ímã/relógio. Quanto MAIOR o presente, mais espetacular o
+// combo (pedido do cliente: quem manda presente caro tem que SENTIR a diferença na tela).
+const ITEM_EFFECT_KEYS = ['bolt', 'ice', 'web', 'skull', 'diamond', 'star', 'magnet', 'clock'];
+const TIMED_EFFECT_KEYS = ['starSec', 'magnetSec', 'fastSec'];
+const EFFECT_KEYS = [
+  'bombs', 'food', 'grow', 'attack', 'shieldSec', 'clearBombs',
+  ...ITEM_EFFECT_KEYS, ...TIMED_EFFECT_KEYS, 'clearAll',
+];
 
 /** Hard per-event ceilings (after multiplying by units), whatever the config says. */
-export const EVENT_CAPS = Object.freeze({ bombs: 60, food: 30, grow: 40, attack: 20, shieldSec: 120 });
+export const EVENT_CAPS = Object.freeze({
+  bombs: 60, food: 30, grow: 40, attack: 20, shieldSec: 120,
+  // [itens] tetos por evento dos itens novos — casam com ITEM_KINDS[].max no state.
+  bolt: 6, ice: 4, web: 4, skull: 3, diamond: 8, star: 3, magnet: 2, clock: 3,
+  starSec: 60, magnetSec: 60, fastSec: 60,
+});
 
 /**
  * The 16 default gifts — REAL TikTok gifts with their well-known coin prices.
@@ -29,6 +42,13 @@ export const DEFAULT_RULES = Object.freeze({
   mode: 'all',
   unlisted: { show: true, countCoins: true },
   fallback: { team: 'villain', bombsPerUnit: 1, bombsPerCoins: 10, maxBombsPerEvent: 30 },
+  // [itens] ESCALA DE RECOMPENSA (pedido do cliente): 1 moeda faz algo pequeno; presente
+  // supremo dispara um COMBO. A régua por faixa de preço:
+  //   1–30 moedas   → 1 efeito simples (bomba/comida)
+  //   ~100 moedas   → efeito simples MAIOR + 1 item especial barato (⚡ raio / 💎 diamante)
+  //   500–3 000     → bombas + item de dano forte (🧊 gelo, 🕸️ teia) ou bônus (⭐, 🧲)
+  //   20 000+       → combo mega: vários itens ao mesmo tempo
+  //   supremo       → tudo junto: caveiras/estrelas + chuva de diamantes + limpar tudo
   gifts: [
     // 😈 VILÕES ------------------------------------------------------------------------
     { name: 'Rosa', match: ['Rose', 'Rosa'], ids: [5655], coins: 1, team: 'villain', tier: 'normal',
@@ -36,34 +56,44 @@ export const DEFAULT_RULES = Object.freeze({
     { name: 'Casquinha', match: ['Ice Cream Cone', 'Casquinha', 'Sorvete'], coins: 1, team: 'villain', tier: 'normal',
       effects: { bombs: 1 }, desc: 'solta 1 bomba' },
     { name: 'Rosquinha', match: ['Doughnut', 'Donut', 'Rosquinha'], coins: 30, team: 'villain', tier: 'normal',
-      effects: { bombs: 3 }, desc: 'solta 3 bombas' },
+      effects: { bombs: 2, bolt: 1 }, desc: '2 bombas + ⚡ 1 raio' },
     { name: 'Boné', match: ['Cap', 'Boné', 'Bone'], coins: 99, team: 'villain', tier: 'normal',
-      effects: { bombs: 6 }, desc: 'solta 6 bombas' },
+      effects: { bombs: 4, bolt: 2 }, desc: '4 bombas + ⚡ 2 raios' },
     { name: 'Confete', match: ['Confetti', 'Confete'], coins: 100, team: 'villain', tier: 'normal',
-      effects: { bombs: 8 }, desc: 'chuva de 8 bombas' },
+      effects: { bombs: 6, ice: 1 }, desc: 'chuva de 6 bombas + 🧊 gelo' },
     { name: 'Arma de Dinheiro', match: ['Money Gun', 'Arma de Dinheiro'], coins: 500, team: 'villain', tier: 'mega',
-      effects: { bombs: 12, attack: 2 }, desc: '12 bombas + morde −2 da cobra' },
+      effects: { bombs: 10, attack: 2, bolt: 3, web: 1 },
+      desc: '💥 10 bombas, morde −2, ⚡ 3 raios e 🕸️ teia' },
     { name: 'Moto', match: ['Motorcycle', 'Moto'], coins: 2988, team: 'villain', tier: 'mega',
-      effects: { bombs: 20, attack: 4 }, maxPerEvent: 40, desc: '20 bombas + atropela −4 da cobra' },
+      effects: { bombs: 16, attack: 4, bolt: 4, ice: 2, web: 2 }, maxPerEvent: 40,
+      desc: '🏍️ 16 bombas, atropela −4, ⚡ 4 raios, 🧊 2 gelos e 🕸️ 2 teias' },
+    // Os dois SUPREMOS mantêm `effects` no contrato histórico (bombas/ataque, limpeza) e
+    // colocam o espetáculo novo em `combo`, aplicado logo depois pelo overlay.
     { name: 'Leão', match: ['Lion', 'Leão', 'Leao'], coins: 29999, team: 'villain', tier: 'supreme',
-      effects: { bombs: 40, attack: 6 }, maxPerEvent: 60, desc: '👑 40 bombas + mordida −6' },
+      effects: { bombs: 40, attack: 6 }, combo: { bolt: 6, ice: 4, web: 4, skull: 3 }, maxPerEvent: 60,
+      desc: '👑 SUPREMO: 40 bombas, mordida −6, ⚡ raios, 🧊 gelo, 🕸️ teias e ☠️ 3 caveiras' },
     // 😇 HERÓIS ------------------------------------------------------------------------
     { name: 'GG', match: ['GG'], coins: 1, team: 'hero', tier: 'normal',
       effects: { food: 1 }, desc: '+1 comida dourada' },
     { name: 'Coraçãozinho', match: ['Finger Heart', 'Coraçãozinho', 'Coração'], coins: 5, team: 'hero', tier: 'normal',
       effects: { food: 2 }, desc: '+2 comidas douradas' },
     { name: 'Tsuru de Papel', match: ['Paper Crane', 'Tsuru de Papel', 'Tsuru'], coins: 99, team: 'hero', tier: 'normal',
-      effects: { grow: 3 }, desc: 'a cobra cresce +3 na hora' },
+      effects: { grow: 3, diamond: 1 }, desc: 'cresce +3 e solta 💎 1 diamante' },
     { name: 'Coração nas Mãos', match: ['Hand Hearts', 'Hands Heart', 'Coração nas Mãos'], coins: 100, team: 'hero', tier: 'normal',
-      effects: { food: 4, grow: 1 }, desc: '+4 comidas e cresce +1' },
+      effects: { food: 3, grow: 1, diamond: 2 }, desc: '+3 comidas, cresce +1 e 💎 2 diamantes' },
     { name: 'Cisne', match: ['Swan', 'Cisne'], coins: 699, team: 'hero', tier: 'mega',
-      effects: { clearBombs: true }, desc: '✨ limpa TODAS as bombas' },
+      effects: { clearBombs: true, diamond: 3, clock: 1 },
+      desc: '✨ limpa TODAS as bombas, 💎 3 diamantes e ⏱️ turbo' },
     { name: 'Galáxia', match: ['Galaxy', 'Galáxia', 'Galaxia'], coins: 1000, team: 'hero', tier: 'mega',
-      effects: { clearBombs: true, shieldSec: 30 }, desc: '🛡️ escudo 30 s + limpa as bombas' },
+      effects: { clearBombs: true, shieldSec: 30, star: 1, magnet: 1 },
+      desc: '🛡️ escudo 30 s, limpa as bombas, ⭐ estrela e 🧲 ímã' },
     { name: 'Foguete', match: ['Rocket', 'Foguete'], coins: 20000, team: 'hero', tier: 'mega',
-      effects: { grow: 10, food: 6, shieldSec: 30 }, desc: '🚀 cresce +10, +6 comidas, escudo 30 s' },
+      effects: { grow: 10, food: 6, shieldSec: 30, diamond: 5, star: 2, clock: 2 },
+      desc: '🚀 cresce +10, 6 comidas, escudo 30 s, 💎 5 diamantes, ⭐ 2 estrelas e ⏱️ turbo' },
     { name: 'Universo TikTok', match: ['TikTok Universe', 'Universo TikTok', 'Universe'], coins: 44999, team: 'hero', tier: 'supreme',
-      effects: { grow: 15, food: 10, clearBombs: true, shieldSec: 60 }, desc: '🌌 SUPREMO: +15, 10 comidas, limpa e escudo 60 s' },
+      effects: { grow: 15, food: 10, clearBombs: true, shieldSec: 60 },
+      combo: { clearAll: true, diamond: 8, star: 3, magnet: 2, clock: 3, starSec: 15 },
+      desc: '🌌 SUPREMO: limpa TUDO, +15, 10 comidas, 💎 chuva de diamantes, ⭐ invencível e 🧲 ímã' },
   ],
 });
 
@@ -125,7 +155,12 @@ function nonNegInt(v, fallback = 0) {
   return x >= 0 ? x : fallback;
 }
 
-/** Zeroed effects object. */
+/**
+ * Zeroed effects object (forma histórica do SPEC).
+ * [itens] Os efeitos novos NÃO entram zerados: eles são adicionados só quando o presente
+ * realmente os usa, para que um presente clássico continue devolvendo exatamente o mesmo
+ * objeto de antes (nada quebra para quem já lia esse formato).
+ */
 function emptyEffects() {
   return { bombs: 0, food: 0, grow: 0, attack: 0, shieldSec: 0, clearBombs: false };
 }
@@ -166,6 +201,7 @@ export function resolveGift(rules, { giftId, giftName, diamondCount = 0, count =
   let tier = 'normal';
   let desc = null;
   const perUnit = emptyEffects();
+  let comboPerUnit = null; // [itens] efeitos extra do presentão (ver rule.combo)
   let maxBombs = nonNegInt(fb.maxBombsPerEvent, 30);
 
   if (rule) {
@@ -182,7 +218,21 @@ export function resolveGift(rules, { giftId, giftName, diamondCount = 0, count =
     perUnit.attack = nonNegInt(fx.attack, 0);
     perUnit.shieldSec = Math.max(0, num(fx.shieldSec, 0));
     perUnit.clearBombs = fx.clearBombs === true;
+    // [itens] itens especiais (quantidade) e efeitos por tempo (segundos)
+    for (const k of ITEM_EFFECT_KEYS) perUnit[k] = nonNegInt(fx[k], 0);
+    for (const k of TIMED_EFFECT_KEYS) perUnit[k] = Math.max(0, num(fx[k], 0));
+    perUnit.clearAll = fx.clearAll === true;
     if (rule.maxPerEvent !== undefined) maxBombs = nonNegInt(rule.maxPerEvent, maxBombs);
+    // [itens] `combo`: efeitos EXTRA dos presentes grandes (itens especiais e tempos). Fica
+    // num campo próprio no resultado, para `effects` continuar exatamente com a forma
+    // histórica do SPEC; o overlay aplica os dois na sequência.
+    const cb = rule.combo && typeof rule.combo === 'object' ? rule.combo : null;
+    if (cb) {
+      comboPerUnit = {};
+      for (const k of ITEM_EFFECT_KEYS) if (cb[k] !== undefined) comboPerUnit[k] = nonNegInt(cb[k], 0);
+      for (const k of TIMED_EFFECT_KEYS) if (cb[k] !== undefined) comboPerUnit[k] = Math.max(0, num(cb[k], 0));
+      if (cb.clearAll === true) comboPerUnit.clearAll = true;
+    }
   } else if (mode === 'allowlist') {
     ruleName = 'unlisted';
     show = unlisted.show === true;
@@ -200,6 +250,26 @@ export function resolveGift(rules, { giftId, giftName, diamondCount = 0, count =
   effects.attack = Math.min(perUnit.attack * units, EVENT_CAPS.attack);
   effects.shieldSec = Math.min(perUnit.shieldSec * units, EVENT_CAPS.shieldSec);
   effects.clearBombs = perUnit.clearBombs && units > 0;
+  // [itens] Cada item/tempo tem seu próprio teto por evento e só aparece no resultado quando
+  // o presente pede por ele (mantém a forma antiga intacta nos presentes clássicos).
+  for (const k of [...ITEM_EFFECT_KEYS, ...TIMED_EFFECT_KEYS]) {
+    const v = Math.min((perUnit[k] || 0) * units, EVENT_CAPS[k]);
+    if (v > 0) effects[k] = v;
+  }
+  if (perUnit.clearAll && units > 0) effects.clearAll = true;
+
+  // [itens] Combo do presentão: mesmo tratamento de tetos, em campo separado. Só aparece no
+  // resultado quando a regra realmente define um `combo`.
+  let combo = null;
+  if (comboPerUnit) {
+    combo = {};
+    for (const k of [...ITEM_EFFECT_KEYS, ...TIMED_EFFECT_KEYS]) {
+      const v = Math.min((comboPerUnit[k] || 0) * units, EVENT_CAPS[k]);
+      if (v > 0) combo[k] = v;
+    }
+    if (comboPerUnit.clearAll && units > 0) combo.clearAll = true;
+    if (Object.keys(combo).length === 0) combo = null;
+  }
 
   return {
     show,
@@ -209,6 +279,7 @@ export function resolveGift(rules, { giftId, giftName, diamondCount = 0, count =
     team,
     tier,
     effects,
+    ...(combo ? { combo } : {}), // [itens]
     desc,
     // Legacy mirrors so older consumers keep working during the transition.
     bombs: effects.bombs,
@@ -274,17 +345,22 @@ export function validateRules(rules) {
         if (g.coins !== undefined && !isNonNegInt(g.coins)) errors.push(`${where}.coins deve ser um inteiro ≥ 0.`);
         if (g.maxPerEvent !== undefined && !isNonNegInt(g.maxPerEvent)) errors.push(`${where}.maxPerEvent deve ser um inteiro ≥ 0.`);
         if (g.bombs !== undefined && g.bombs !== null && !isNonNegInt(g.bombs)) errors.push(`${where}.bombs deve ser um inteiro ≥ 0.`);
-        if (g.effects !== undefined) {
-          const fx = g.effects;
-          if (!fx || typeof fx !== 'object' || Array.isArray(fx)) errors.push(`${where}.effects deve ser um objeto.`);
+        // [itens] `combo` aceita exatamente as mesmas chaves de `effects` e é validado igual.
+        for (const field of ['effects', 'combo']) {
+        if (g[field] !== undefined) {
+          const fx = g[field];
+          const where2 = `${where}.${field}`;
+          if (!fx || typeof fx !== 'object' || Array.isArray(fx)) errors.push(`${where2} deve ser um objeto.`);
           else {
             for (const k of Object.keys(fx)) {
-              if (!EFFECT_KEYS.includes(k)) { errors.push(`${where}.effects.${k}: efeito desconhecido (use ${EFFECT_KEYS.join(', ')}).`); continue; }
-              if (k === 'clearBombs') { if (typeof fx[k] !== 'boolean') errors.push(`${where}.effects.clearBombs deve ser true ou false.`); }
-              else if (k === 'shieldSec') { if (!(typeof fx[k] === 'number' && Number.isFinite(fx[k]) && fx[k] >= 0)) errors.push(`${where}.effects.shieldSec deve ser um número ≥ 0.`); }
-              else if (!isNonNegInt(fx[k])) errors.push(`${where}.effects.${k} deve ser um inteiro ≥ 0.`);
+              if (!EFFECT_KEYS.includes(k)) { errors.push(`${where2}.${k}: efeito desconhecido (use ${EFFECT_KEYS.join(', ')}).`); continue; }
+              if (k === 'clearBombs' || k === 'clearAll') { if (typeof fx[k] !== 'boolean') errors.push(`${where2}.${k} deve ser true ou false.`); }
+              // [itens] shieldSec e os tempos novos (starSec/magnetSec/fastSec) são números ≥ 0.
+              else if (k === 'shieldSec' || TIMED_EFFECT_KEYS.includes(k)) { if (!(typeof fx[k] === 'number' && Number.isFinite(fx[k]) && fx[k] >= 0)) errors.push(`${where2}.${k} deve ser um número ≥ 0.`); }
+              else if (!isNonNegInt(fx[k])) errors.push(`${where2}.${k} deve ser um inteiro ≥ 0.`);
             }
           }
+        }
         }
       });
     }
@@ -299,7 +375,10 @@ export function withDefaults(rules) {
     mode: MODES.has(r.mode) ? r.mode : 'all',
     unlisted: { ...DEFAULT_RULES.unlisted, ...(r.unlisted || {}) },
     fallback: { ...DEFAULT_RULES.fallback, ...(r.fallback || {}) },
-    gifts: Array.isArray(r.gifts) ? r.gifts.map((g) => ({ ...g, effects: g.effects ? { ...g.effects } : undefined })) : DEFAULT_RULES.gifts.map((g) => ({ ...g, effects: { ...g.effects } })),
+    // [itens] `combo` é copiado junto com `effects` (mesma cópia rasa).
+    gifts: Array.isArray(r.gifts)
+      ? r.gifts.map((g) => ({ ...g, effects: g.effects ? { ...g.effects } : undefined, ...(g.combo ? { combo: { ...g.combo } } : {}) }))
+      : DEFAULT_RULES.gifts.map((g) => ({ ...g, effects: { ...g.effects }, ...(g.combo ? { combo: { ...g.combo } } : {}) })),
   };
 }
 

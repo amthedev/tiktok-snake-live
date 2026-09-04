@@ -245,6 +245,58 @@ export class Renderer3D {
 
   setBombFuse(id, fuseLeftSec) { this.items.setBombFuse(id, fuseLeftSec); }
 
+  // ---------------------------------------------------------------- [itens] itens especiais
+
+  /**
+   * Coloca um item especial (⚡🧊🕸️☠️ / 💎⭐🧲⏱️) no tabuleiro, com um jato de partículas
+   * na cor dele. Removido por removeItem(id, reason), como qualquer outro item.
+   */
+  addSpecialItem(id, kind, x, z, meta = {}) {
+    this.items.addSpecialItem(id, kind, x, z, meta);
+    const colors = this.items.colorsFor(kind);
+    const villain = kind === 'bolt' || kind === 'ice' || kind === 'web' || kind === 'skull';
+    this.pool.emit({
+      x: (x + 0.5) * CELL, y: ITEM_Y + 0.25, z: (z + 0.5) * CELL,
+      count: 20, colors, speed: 1.7, spread: 0.85, up: villain ? 0.8 : 1.9,
+      life: 0.75, size: 0.3, gravity: villain ? -1 : -2, drag: 2, fade: 1
+    });
+    this.shockwaves.spawn((x + 0.5) * CELL, ITEM_Y - 0.28, (z + 0.5) * CELL, {
+      color: colors[0], radius: 1.5, duration: 0.45
+    });
+  }
+
+  setItemFuse(id, fuseLeftSec) { this.items.setItemFuse(id, fuseLeftSec); }
+
+  /** 🧲 Ímã: a comida andou uma célula — só reposiciona (sem animação de saída). */
+  moveItem(id, x, z) { this.items.moveTo(id, x, z); }
+
+  /** Explosão/coleta com a cara do item: cor própria e tamanho por peso do efeito. */
+  itemBurst(kind, x, z) {
+    const colors = this.items.colorsFor(kind);
+    const wx = (x + 0.5) * CELL;
+    const wz = (z + 0.5) * CELL;
+    const big = kind === 'skull' || kind === 'star';
+    this.pool.emit({
+      x: wx, y: ITEM_Y + 0.2, z: wz, count: big ? 150 : 90, colors,
+      speed: big ? 7 : 5, speedVar: 0.6, spread: 0.7, up: 2.6, life: 1.0, size: 0.36,
+      gravity: -7, drag: 2, fade: 1
+    });
+    this.shockwaves.spawn(wx, ITEM_Y - 0.28, wz, { color: colors[0], radius: big ? 3.4 : 2.2, duration: 0.6 });
+    this.board.touchTile(x, z, 2);
+  }
+
+  /** ⭐ Invencibilidade: reaproveita a bolha do escudo, em dourado. */
+  setStar(active) {
+    this.shield.setActive(!!active);
+    this.snake?.setShield(!!active);
+  }
+
+  /** 🕸️ Preso na teia: escurece levemente o palco enquanto a cobra não se solta. */
+  setWeb(active) {
+    this.webbed = !!active;
+    this.background.setTint(this.webbed ? 0x94a3b8 : PHASE_TINT[this.phase] ?? 0x22d3ee);
+  }
+
   removeItem(id, reason = 'cleared') {
     const r = this.items.remove(id, reason);
     if (!r) return;
@@ -260,6 +312,14 @@ export class Renderer3D {
       if (reason === 'eaten') { burstGold(this.pool, wx, ITEM_Y + 0.2, wz); this.snake?.onEat(); }
       else if (reason === 'expired') puffExpire(this.pool, wx, ITEM_Y + 0.2, wz);
       else puffClear(this.pool, wx, ITEM_Y + 0.2, wz);
+      return;
+    }
+    // [itens] Item especial: a explosão bonita vem de itemBurst() (chamada pelo main com o
+    // tipo do item); aqui só tratamos o pavio e a limpeza.
+    if (r.type === 'item') {
+      if (reason === 'eaten') this.snake?.[r.villain ? 'onHurt' : 'onEat']?.();
+      else if (reason === 'expired') puffExpire(this.pool, wx, ITEM_Y + 0.25, wz);
+      else puffClear(this.pool, wx, ITEM_Y + 0.25, wz);
       return;
     }
     if (reason === 'eaten') { this._explodeAt(r.x, r.z, 0xff6a3d, 1); this.snake?.onHurt(); }

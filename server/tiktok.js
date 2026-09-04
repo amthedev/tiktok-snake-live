@@ -445,6 +445,9 @@ export class TikTokBridge extends EventEmitter {
         team: rule.team,
         tier: rule.tier,
         effects: rule.effects,
+        // [itens] combo = efeitos extra dos presentões (itens especiais e tempos). Só existe
+        // nas regras que o definem; o overlay aplica junto com `effects`.
+        ...(rule.combo ? { combo: rule.combo } : {}),
         desc: rule.desc,
         // legacy mirrors
         bombs: rule.bombs,

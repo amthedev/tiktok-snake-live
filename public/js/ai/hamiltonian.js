@@ -28,6 +28,19 @@
  * body cell different from head and different from succ (the only cell with distFwd 1 is
  * succ itself; when growing succ === apple which is never a body cell). Therefore the
  * successor is always safe.
+ *
+ * Route variety (client request 2026-09-04)
+ * -----------------------------------------
+ * The safety argument above depends ONLY on the ordering invariant, never on the *shape* of
+ * the cycle. So each round may run on a different Hamiltonian cycle and the snake still can
+ * never collide. `buildCycle(w, h, { seed })` generates a genuinely random cycle via the
+ * classic spanning-tree construction: a uniform-ish random spanning tree of the reduced
+ * (w/2 x h/2) grid, whose perimeter walk is exactly one Hamiltonian cycle of the full grid.
+ * That gives combinatorially many distinct routes (a 16x16 board has a 8x8 reduced grid,
+ * i.e. astronomically many spanning trees) instead of the single canonical zig-zag.
+ *
+ * `buildCycle(w, h)` with no options still returns the exact canonical cycle, so existing
+ * callers and tests are unaffected.
  */
 
 /** Direction table, same order as the prototype: 0 up (-z), 1 right (+x), 2 down (+z), 3 left (-x). */
@@ -57,16 +70,197 @@ function emitCanonicalCycle(W, H, emit) {
   for (let v = H - 1; v >= 1; v--) emit(0, v);
 }
 
+/** Small deterministic PRNG (mulberry32), duplicated here so the AI has no imports. */
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /**
- * Build a Hamiltonian cycle for a w×h board.
- * @returns {{ w:number, h:number, n:number, pos:Int32Array, cells:Int32Array }}
- *   pos[cellIdx] = cycle position, cells[position] = cellIdx.
- * @throws {RangeError} if w*h is odd or w < 2 or h < 2 (no Hamiltonian cycle exists).
+ * Random spanning tree of the W×H reduced grid (randomised Kruskal with union-find).
+ * `forced` edges are added first (the caller guarantees they are acyclic) and `forbidden`
+ * edges are never added — together they pin down the local shape the game start needs.
+ * @returns {Set<number>} undirected edge keys (min*N + max)
  */
-export function buildCycle(w, h) {
-  if (!Number.isInteger(w) || !Number.isInteger(h) || w < 2 || h < 2 || (w * h) % 2 !== 0) {
-    throw new RangeError(`buildCycle: tabuleiro inválido ${w}x${h} (w e h devem ser inteiros >= 2 e w*h par)`);
+function randomSpanningTree(W, H, rng, forced, forbidden) {
+  const N = W * H;
+  const edgeKey = (a, b) => (a < b ? a * N + b : b * N + a);
+  const tree = new Set();
+  const parent = new Int32Array(N);
+  for (let i = 0; i < N; i++) parent[i] = i;
+  const find = (a) => {
+    let r = a;
+    while (parent[r] !== r) r = parent[r];
+    while (parent[a] !== r) { const nx = parent[a]; parent[a] = r; a = nx; } // path compression
+    return r;
+  };
+  const union = (a, b) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return false;
+    parent[ra] = rb;
+    return true;
+  };
+  for (let i = 0; i < forced.length; i++) {
+    const [a, b] = forced[i];
+    if (union(a, b)) tree.add(edgeKey(a, b));
   }
+  // All grid edges, shuffled (Fisher-Yates) — a random-weight Kruskal run.
+  const all = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (x + 1 < W) all.push(i, i + 1);
+      if (y + 1 < H) all.push(i, i + W);
+    }
+  }
+  const m = all.length >> 1;
+  for (let i = m - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const ai = i << 1;
+    const aj = j << 1;
+    const t0 = all[ai]; const t1 = all[ai + 1];
+    all[ai] = all[aj]; all[ai + 1] = all[aj + 1];
+    all[aj] = t0; all[aj + 1] = t1;
+  }
+  for (let e = 0; e < m; e++) {
+    const a = all[e << 1];
+    const b = all[(e << 1) + 1];
+    const k = edgeKey(a, b);
+    if (tree.has(k) || forbidden.has(k)) continue;
+    if (union(a, b)) tree.add(k);
+  }
+  return tree;
+}
+
+/**
+ * Trace the perimeter walk of a spanning tree of the (w/2)×(h/2) reduced grid. Each tree
+ * node is a 2×2 block of board cells; walking clockwise around every block and crossing into
+ * the neighbouring block wherever a tree edge exists visits every cell exactly once and
+ * returns to the start — i.e. a Hamiltonian cycle. Requires w and h even.
+ */
+function cycleFromTree(w, h, tree) {
+  const W = w >> 1;
+  const H = h >> 1;
+  const N = W * H;
+  const n = w * h;
+  const edgeKey = (a, b) => (a < b ? a * N + b : b * N + a);
+  const has = (a, b) => tree.has(edgeKey(a, b));
+  const cells = new Int32Array(n);
+  const pos = new Int32Array(n);
+  let x = 0;
+  let y = 0;
+  let k = 0;
+  do {
+    const idx = y * w + x;
+    cells[k] = idx;
+    pos[idx] = k;
+    k++;
+    if (k > n) throw new Error('cycleFromTree: caminhada não fechou');
+    const X = x >> 1;
+    const Y = y >> 1;
+    const node = Y * W + X;
+    const sx = x & 1;
+    const sy = y & 1;
+    // Clockwise inside the block: (0,0) → (1,0) → (1,1) → (0,1) → (0,0); a tree edge on the
+    // side we are facing sends us into the neighbouring block instead.
+    if (sx === 0 && sy === 0) {
+      if (Y > 0 && has(node, node - W)) y -= 1; else x += 1;
+    } else if (sx === 1 && sy === 0) {
+      if (X + 1 < W && has(node, node + 1)) x += 1; else y += 1;
+    } else if (sx === 1 && sy === 1) {
+      if (Y + 1 < H && has(node, node + W)) y += 1; else x -= 1;
+    } else {
+      if (X > 0 && has(node, node - 1)) x -= 1; else y -= 1;
+    }
+  } while (!(x === 0 && y === 0));
+  if (k !== n) throw new Error(`cycleFromTree: caminhada visitou ${k}/${n} células`);
+  return { w, h, n, pos, cells };
+}
+
+/**
+ * Tree constraints that guarantee the game's starting placement exists on the generated
+ * cycle: the three cells (xc-2, zc), (xc-1, zc), (xc, zc) must appear consecutively, in that
+ * forward order, where xc = w/2 and zc is a central row.
+ *
+ * Reading the walk rule in cycleFromTree, a cell can be left RIGHTWARDS only from sub-row
+ * sy = 0 (an even z), and then:
+ *   sub-cell (0,0) → right iff its block has NO up-edge;
+ *   sub-cell (1,0) → right iff its block HAS a right-edge.
+ * So the run must sit on the even one of the two central rows (h is even, so exactly one of
+ * h/2 and h/2 - 1 is even — and `_placeSnake` tries both). The two leftmost cells of the run
+ * carry one constraint each; they touch either one block (xc even) or two adjacent blocks
+ * (xc odd), and in both cases the forced and forbidden edges are distinct, so a spanning tree
+ * satisfying them always exists.
+ *
+ * @returns {{ forced: Array<[number, number]>, forbidden: Set<number>, zc: number }}
+ */
+function startRunConstraints(w, h) {
+  const W = w >> 1;
+  const H = h >> 1;
+  const N = W * H;
+  const edgeKey = (a, b) => (a < b ? a * N + b : b * N + a);
+  const xc = w >> 1;
+  // The even central row — the only one that can carry a left-to-right run.
+  const mid = h >> 1;
+  const zc = mid % 2 === 0 ? mid : mid - 1;
+  const Y = zc >> 1;
+  const forced = [];
+  const forbidden = new Set();
+  // One constraint per departure: cells (xc-2, zc) and (xc-1, zc) must both step right.
+  for (const x of [xc - 2, xc - 1]) {
+    const X = x >> 1;
+    const node = Y * W + X;
+    if ((x & 1) === 0) {
+      // sub-cell (0,0): must NOT have an up-edge.
+      if (Y > 0) forbidden.add(edgeKey(node, node - W));
+    } else {
+      // sub-cell (1,0): must have a right-edge.
+      if (X + 1 < W) forced.push([node, node + 1]);
+    }
+  }
+  return { forced, forbidden, zc };
+}
+
+/**
+ * True when the board can carry a randomly generated cycle: both sides even and at least 4,
+ * so the reduced grid is a real 2×2-or-bigger grid and the start-run constraints fit.
+ */
+function supportsRandomCycle(w, h) {
+  return w % 2 === 0 && h % 2 === 0 && w >= 4 && h >= 4;
+}
+
+/**
+ * True when the cycle contains the run the game's start placement needs: the three cells
+ * (xc-2, zc), (xc-1, zc), (xc, zc) consecutive in forward order, on one of the two central
+ * rows. `startRunConstraints` is designed to guarantee this; this is the verification.
+ */
+function hasStartRun(cycle) {
+  const { w, h, n, pos } = cycle;
+  const xc = w >> 1;
+  if (xc < 2) return false;
+  for (const zc of [h >> 1, (h >> 1) - 1]) {
+    if (zc < 0) continue;
+    const head = zc * w + xc;
+    if ((pos[head] - pos[head - 1] + n) % n === 1 && (pos[head - 1] - pos[head - 2] + n) % n === 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Cache of generated cycles, keyed by `${w}x${h}:${seed}` (see buildCycle opts.cache). */
+const cycleCache = new Map();
+const CYCLE_CACHE_MAX = 64;
+
+/** Build the canonical zig-zag cycle (the original, deterministic construction). */
+function buildCanonicalCycle(w, h) {
   const n = w * h;
   const pos = new Int32Array(n);
   const cells = new Int32Array(n);
@@ -85,6 +279,70 @@ export function buildCycle(w, h) {
     emitCanonicalCycle(h, w, (u, v) => put(v, u));
   }
   return { w, h, n, pos, cells };
+}
+
+/**
+ * Build a Hamiltonian cycle for a w×h board.
+ *
+ * With no `opts` (or no `opts.seed`) this returns the canonical zig-zag cycle, byte for byte
+ * what it always returned — existing callers and tests keep their exact behaviour.
+ *
+ * With `opts.seed` it returns a RANDOM Hamiltonian cycle for that seed (see the module header):
+ * different seeds give visually different routes, the same seed always gives the same cycle,
+ * and every result is a genuine Hamiltonian cycle, so the AI's safety guarantee is untouched.
+ * Random generation needs both sides even and >= 4; other shapes fall back to the canonical
+ * cycle. Results are cached by (w, h, seed) — generation is ~0.1 ms on 24x24, but the game
+ * loop never pays even that twice.
+ *
+ * @param {number} w
+ * @param {number} h
+ * @param {{ seed?:number, cache?:boolean }} [opts]
+ * @returns {{ w:number, h:number, n:number, pos:Int32Array, cells:Int32Array, seed:number, variant:string }}
+ *   pos[cellIdx] = cycle position, cells[position] = cellIdx.
+ * @throws {RangeError} if w*h is odd or w < 2 or h < 2 (no Hamiltonian cycle exists).
+ */
+export function buildCycle(w, h, opts) {
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w < 2 || h < 2 || (w * h) % 2 !== 0) {
+    throw new RangeError(`buildCycle: tabuleiro inválido ${w}x${h} (w e h devem ser inteiros >= 2 e w*h par)`);
+  }
+  const seed = opts && Number.isFinite(opts.seed) ? Math.trunc(opts.seed) >>> 0 : null;
+  if (seed === null || !supportsRandomCycle(w, h)) {
+    const cycle = buildCanonicalCycle(w, h);
+    cycle.seed = seed ?? 0;
+    cycle.variant = 'canonical';
+    return cycle;
+  }
+  const useCache = !opts || opts.cache !== false;
+  const key = `${w}x${h}:${seed}`;
+  if (useCache) {
+    const hit = cycleCache.get(key);
+    if (hit) return hit;
+  }
+  const { forced, forbidden } = startRunConstraints(w, h);
+  const tree = randomSpanningTree(w >> 1, h >> 1, makeRng(seed), forced, forbidden);
+  const cycle = cycleFromTree(w, h, tree);
+  // Cheap contract check: the generated route must be usable by the game's start placement.
+  // Falling back to the canonical cycle is always correct (just less varied) and is strictly
+  // better than handing the caller a cycle its snake cannot be laid out on.
+  if (!hasStartRun(cycle)) {
+    const fallback = buildCanonicalCycle(w, h);
+    fallback.seed = seed;
+    fallback.variant = 'canonical';
+    return fallback;
+  }
+  cycle.seed = seed;
+  cycle.variant = 'tree';
+  if (useCache) {
+    // Bounded LRU-ish: drop the oldest entry once the map is full.
+    if (cycleCache.size >= CYCLE_CACHE_MAX) cycleCache.delete(cycleCache.keys().next().value);
+    cycleCache.set(key, cycle);
+  }
+  return cycle;
+}
+
+/** Drop every cached generated cycle (tests / memory pressure). */
+export function clearCycleCache() {
+  cycleCache.clear();
 }
 
 /** Forward distance along the cycle from cell a to cell b: (pos[b] - pos[a] + n) % n. */

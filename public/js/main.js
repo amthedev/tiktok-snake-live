@@ -38,6 +38,34 @@ const SIM_GIFTS = {
   universe: { giftName: 'Universo TikTok', giftId: '', diamondCount: 44999, count: 1, team: 'hero', tier: 'supreme', effects: { grow: 15, food: 10, clearBombs: true, shieldSec: 60 } }
 };
 
+// [itens] Chaves de efeito que viram itens no tabuleiro (a ordem é a de aplicação).
+const ITEM_FX_KEYS = ['bolt', 'ice', 'web', 'skull', 'diamond', 'star', 'magnet', 'clock'];
+
+// [itens] Som e texto pt-BR de cada item especial. `spawn` toca quando ele aparece no
+// tabuleiro; `eat` quando a cobra encosta. Os nomes vêm de audio.js (tudo sintetizado).
+const ITEM_SOUND = {
+  bolt:    { spawn: 'boltSpawn', eat: 'bolt' },
+  ice:     { spawn: 'iceSpawn',  eat: 'ice' },
+  web:     { spawn: 'webSpawn',  eat: 'web' },
+  skull:   { spawn: 'skullSpawn', eat: 'skull' },
+  diamond: { spawn: 'gemSpawn',  eat: 'diamond' },
+  star:    { spawn: 'starSpawn', eat: 'star' },
+  magnet:  { spawn: 'gemSpawn',  eat: 'magnet' },
+  clock:   { spawn: 'gemSpawn',  eat: 'clock' }
+};
+
+/** [itens] Texto do toast quando a cobra encosta em cada item. */
+const ITEM_TOAST = {
+  bolt:    (ev) => ({ text: `⚡ RAIO! A cobra encolheu −${ev.shrink} · tamanho ${ev.length}`, kind: 'warn' }),
+  skull:   (ev) => ({ text: `☠️ CAVEIRA! Dano pesado: −${ev.shrink} · tamanho ${ev.length}`, kind: 'warn' }),
+  ice:     () => ({ text: '🧊 GELO! A cobra ficou lenta', kind: 'warn' }),
+  web:     () => ({ text: '🕸️ TEIA! A cobra ficou presa', kind: 'warn' }),
+  diamond: (ev) => ({ text: `💎 DIAMANTE! A cobra cresce +${ev.grow}`, kind: 'success' }),
+  star:    () => ({ text: '⭐ ESTRELA! A cobra ficou INVENCÍVEL', kind: 'success' }),
+  magnet:  () => ({ text: '🧲 ÍMÃ! As comidas vêm até a cobra', kind: 'success' }),
+  clock:   () => ({ text: '⏱️ RELÓGIO! A cobra acelerou', kind: 'success' })
+};
+
 const SIM_NAMES = ['Ana', 'Bruno', 'Carla', 'Diego', 'Eduarda', 'Felipe', 'Gabi', 'Heitor'];
 const SIM_CHATS = ['vai cobra!!!', 'manda bomba kkk', 'que jogo é esse?', 'cobra brava 🐍', 'GG', 'bora vencer', 'kkkkkk'];
 
@@ -80,7 +108,22 @@ class App {
     this.disposeStage = null;    // [layout] set by boot(): tears down the stage resize listeners
     this.alerts = null;          // [monet] fila de alertas (entrada / seguidor / compartilhar / presentão)
     this.goals = null;           // [monet] metas, ranking, dicas e duelo
+
+    // [persist] Estado autoritativo do servidor.
+    //  * `role`: 'owner' → esta aba manda na partida (round_start/round_end/snapshot);
+    //            'mirror' → só exibe (outro overlay já é o dono), para o placar não contar dobrado.
+    //  * `resumeFrom`: rodada guardada no servidor que esta aba deve retomar no boot.
+    //  * `helloSeen`: distingue o 1º hello (boot) dos hellos de reconexão — reconectar NÃO pode
+    //    reiniciar a rodada nem reprocessar eventos.
+    this.role = 'owner';
+    this.resumeFrom = null;
+    this.helloSeen = false;
+    this.resumedRoundId = 0;     // rodada retomada: não reincrementa o roundId local
+    this.roundStartedAt = 0;     // relógio da rodada (ms epoch), vindo do servidor quando retomada
   }
+
+  /** [persist] true quando esta aba só espelha a partida de outro overlay. */
+  get isMirror() { return this.role === 'mirror'; }
 
   // ---- [monet] seção de monetização --------------------------------------------------------
 
@@ -206,7 +249,10 @@ class App {
     this.gameReady = true;
     this.setDevStatus('pronto');
     this.startLoop();
-    this.startRound();
+    // [persist] Se o servidor guardou uma rodada recente, retoma-a (mesmo número, mesmo relógio)
+    // em vez de começar do zero — é isso que faz o F5 não perder a partida.
+    const resumed = this.resumeRound();
+    this.startRound({ resumed });
   }
 
   applyHello(hello) {
@@ -218,13 +264,80 @@ class App {
       this.monet(() => this.goals?.setLeaderboard(hello.leaderboard)); // [monet]
     }
     if (hello.tiktok) this.hud.setTiktokStatus(hello.tiktok);
+
+    // [persist] Papel desta aba (dono × espelho) e estado da rodada guardado no servidor.
+    this.applyRole(hello.role);
+    // Só o PRIMEIRO hello pode retomar uma rodada: nos hellos de reconexão a rodada local já
+    // está rodando e retomar de novo faria a partida pular para trás.
+    if (!this.helloSeen) {
+      this.helloSeen = true;
+      this.resumeFrom = hello.resume === true && hello.live ? hello.live : null;
+    }
+  }
+
+  /**
+   * [persist] Aplica o papel mandado pelo servidor. O espelho não manda `round_start`/`round_end`
+   * /`snapshot` — o servidor os ignoraria de qualquer forma, mas calar na origem evita tráfego
+   * inútil e deixa a intenção explícita no código.
+   */
+  applyRole(role) {
+    const next = role === 'mirror' ? 'mirror' : 'owner';
+    if (next === this.role) return;
+    const wasMirror = this.role === 'mirror';
+    this.role = next;
+    if (next === 'mirror') {
+      this.hud?.showToast('👀 Modo espelho: outro overlay está comandando a partida', 'info');
+      this.setDevStatus('espelho (outro overlay é o dono)');
+    } else if (wasMirror) {
+      // O overlay dono caiu e o servidor promoveu este: assume a partida de onde ela parou.
+      this.hud?.showToast('🎮 Assumindo a partida (o overlay dono saiu)', 'info');
+      this.setDevStatus('online (dono da partida)');
+    }
+  }
+
+  /**
+   * [persist] Retoma a rodada guardada no servidor: mesmo roundId, mesmo tempo decorrido.
+   * O tabuleiro em si não é replicado célula a célula (a cobra é autônoma e determinística
+   * demais para valer o custo); o que o público percebe — número da rodada, cronômetro, metas
+   * e rankings — volta idêntico.
+   * @returns {boolean} true quando a rodada foi retomada (o boot não deve começar uma nova)
+   */
+  resumeRound() {
+    const live = this.resumeFrom;
+    this.resumeFrom = null;
+    if (!live || !this.state) return false;
+    const roundId = Number(live.roundId) || 0;
+    if (roundId <= 0) return false;
+    // Alinha o roundId local com o do servidor. `startRound()` chama `state.reset()`, que faz
+    // roundId += 1, então deixamos o contador um atrás para cair exatamente no roundId retomado.
+    // (Escrever `_roundId` direto é de propósito: state.js pertence a outro dev e não expõe um
+    // setter; nada mais do estado é tocado aqui.)
+    this.resumedRoundId = roundId;
+    try {
+      this.state._roundId = roundId - 1;
+    } catch (err) {
+      this.reportError(err, 'retomar rodada');
+      return false;
+    }
+    // O cronômetro continua de onde parou: o servidor guarda quando a rodada começou.
+    this.roundStartedAt = Number(live.startedAt) || 0;
+    // As metas voltam ao ponto em que estavam (escala da meta e progresso já consumido).
+    this.monet(() => this.goals?.restore?.(live.goals));
+    this.hud?.showToast(`♻️ Retomando a rodada ${roundId}`, 'info');
+    return true;
   }
 
   // ---- round lifecycle ---------------------------------------------------------------------
 
-  /** Start a brand-new round (cancels any countdown/round-end wait in progress). */
-  async startRound() {
+  /**
+   * Start a brand-new round (cancels any countdown/round-end wait in progress).
+   * @param {{resumed?: boolean}} [o] [persist] resumed=true → retomando a rodada guardada no
+   *        servidor: pula a contagem regressiva e NÃO reanuncia `round_start` (o ranking da
+   *        rodada não pode ser zerado de novo por causa de um F5).
+   */
+  async startRound(o = {}) {
     if (!this.gameReady || !this.state) return;
+    const resumed = o.resumed === true;
     const token = ++this.roundToken;
     this.roundBusy = true;
     this.hud.hideOverlays();
@@ -266,13 +379,24 @@ class App {
       }
       this.hud.update(this.state.snapshot);
 
-      await this.hud.showCountdown(snap.roundId, this.config.countdownSec, { onTick: () => this.audio.play('tick') });
-      if (token !== this.roundToken) return; // a newer round superseded this one
+      // [persist] Retomada: sem contagem regressiva (a rodada já estava rolando antes do F5).
+      if (!resumed) {
+        await this.hud.showCountdown(snap.roundId, this.config.countdownSec, { onTick: () => this.audio.play('tick') });
+        if (token !== this.roundToken) return; // a newer round superseded this one
+      }
 
       this.state.start();
+      // [persist] O cronômetro da rodada continua de onde parou: o servidor guarda `startedAt`.
+      if (resumed && this.roundStartedAt > 0) {
+        try { this.state._startedAt = this.roundStartedAt; } catch { /* ignore */ }
+      } else {
+        this.roundStartedAt = 0;
+      }
       this.audio.play('start');
       this.safe(() => this.renderer?.setPhase('playing'));
-      this.net.send('round_start', { roundId: snap.roundId });
+      // [persist] `round_start` zera o ranking da rodada no servidor: só o DONO manda, e nunca
+      // numa retomada (senão o F5 apagaria o duelo que estava em andamento).
+      if (!resumed && !this.isMirror) this.net.send('round_start', { roundId: snap.roundId });
       this.hud.flash('green');
     } catch (err) {
       this.reportError(err, 'iniciar rodada');
@@ -297,14 +421,17 @@ class App {
       this.audio.play(win ? 'win' : 'lose');
       this.hud.flash(win ? 'gold' : 'red');
       if (!win) this.safe(() => this.renderer?.shake(2));
-      this.net.send('round_end', {
-        roundId: summary.roundId ?? snap.roundId,
-        result: summary.result || (win ? 'win' : 'loss'),
-        apples: summary.apples ?? 0,
-        bombsEaten: summary.bombsEaten ?? 0,
-        length: summary.length ?? 0,
-        durationMs: summary.durationMs ?? 0
-      });
+      // [persist] Só o DONO fecha a rodada — dois overlays abertos contariam a vitória em dobro.
+      if (!this.isMirror) {
+        this.net.send('round_end', {
+          roundId: summary.roundId ?? snap.roundId,
+          result: summary.result || (win ? 'win' : 'loss'),
+          apples: summary.apples ?? 0,
+          bombsEaten: summary.bombsEaten ?? 0,
+          length: summary.length ?? 0,
+          durationMs: summary.durationMs ?? 0
+        });
+      }
       // Give the server a moment to broadcast the updated stats before the panel shows.
       await sleep(250);
       if (token !== this.roundToken) return;
@@ -379,12 +506,20 @@ class App {
       }
 
       this.snapAcc += dt;
-      if (this.snapAcc >= 1 / SNAPSHOT_HZ) {
+      // [persist] O snapshot é o que mantém o servidor autoritativo: ele guarda esse estado em
+      // disco (com debounce) e devolve no `hello` para retomar a rodada depois de um F5.
+      // Só o DONO manda — o espelho apenas exibe.
+      if (this.snapAcc >= 1 / SNAPSHOT_HZ && !this.isMirror) {
         this.snapAcc = 0;
         this.net.send('snapshot', {
           roundId: snap.roundId, phase: snap.phase, length: snap.length, danger: snap.danger === true, paused: this.paused === true,
-          apples: snap.apples, bombs: Array.isArray(snap.bombs) ? snap.bombs.length : 0, progress: snap.progress
+          apples: snap.apples, bombs: Array.isArray(snap.bombs) ? snap.bombs.length : 0, progress: snap.progress,
+          // [persist] campos extras para a retomada: cronômetro, bombas comidas e metas.
+          bombsEaten: snap.bombsEaten, elapsedMs: snap.durationMs,
+          goals: this.monet(() => this.goals?.snapshot?.()) || undefined
         }, { queue: false });
+      } else if (this.snapAcc >= 1 / SNAPSHOT_HZ) {
+        this.snapAcc = 0;
       }
 
       if (this.renderer) this.renderer.frame(dt, this.elapsed);
@@ -470,6 +605,68 @@ class App {
             this.safe(() => this.renderer?.setShield?.(false));
             this.hud.showToast('🛡️ O escudo acabou…', 'info');
             break;
+          // [itens] ---- itens especiais (raio, gelo, teia, caveira, diamante, estrela, ímã, relógio)
+          case 'item_spawn':
+            this.addItem(ev.id, () => this.renderer?.addSpecialItem?.(ev.id, ev.kind, ev.x, ev.z, {
+              fuseSec: ev.fuseSec > 0 ? ev.fuseSec : Infinity,
+              giftImageUrl: ev.meta?.giftImageUrl ?? null,
+              nickname: ev.meta?.nickname ?? undefined
+            }));
+            this.audio.play(ITEM_SOUND[ev.kind]?.spawn || 'gift');
+            break;
+          case 'eat_item':
+            this.removeItem(ev.id, 'eaten');
+            this.onItemEaten(ev);
+            break;
+          case 'item_expire':
+            this.removeItem(ev.id, 'expired');
+            this.audio.play('expire');
+            break;
+          case 'item_clear':
+            for (const id of ev.ids || []) this.removeItem(id, 'cleared');
+            break;
+          case 'food_move':
+            // 🧲 ímã: a comida andou uma célula — o renderer só precisa reposicioná-la.
+            this.safe(() => this.renderer?.moveItem?.(ev.id, ev.x, ev.z));
+            break;
+          case 'star_start':
+            this.safe(() => this.renderer?.setStar?.(true));
+            this.hud.flash('gold');
+            this.hud.showToast(`⭐ INVENCÍVEL por ${Math.round(ev.seconds)} s!`, 'success');
+            break;
+          case 'star_end':
+            this.safe(() => this.renderer?.setStar?.(false));
+            this.hud.showToast('⭐ A invencibilidade acabou…', 'info');
+            break;
+          case 'slow_start':
+            this.hud.showToast(`🧊 Congelada! A cobra ficou lenta por ${Math.round(ev.seconds)} s`, 'warn');
+            break;
+          case 'slow_end':
+            this.hud.showToast('🧊 O gelo derreteu — velocidade normal', 'info');
+            break;
+          case 'fast_start':
+            this.hud.showToast(`⏱️ TURBO! A cobra acelerou por ${Math.round(ev.seconds)} s`, 'success');
+            break;
+          case 'fast_end':
+            this.hud.showToast('⏱️ O turbo acabou', 'info');
+            break;
+          case 'magnet_start':
+            this.hud.showToast(`🧲 Ímã ligado! As comidas vêm até a cobra (${Math.round(ev.seconds)} s)`, 'success');
+            break;
+          case 'magnet_end':
+            this.hud.showToast('🧲 O ímã desligou', 'info');
+            break;
+          case 'web_start':
+            this.safe(() => this.renderer?.setWeb?.(true));
+            this.hud.flash('red');
+            this.hud.showToast(`🕸️ Presa na teia por ${ev.steps} passo${ev.steps === 1 ? '' : 's'}!`, 'warn');
+            break;
+          case 'web_stuck':
+            break; // um por passo: sem toast, o visual da teia já conta a história
+          case 'web_end':
+            this.safe(() => this.renderer?.setWeb?.(false));
+            this.hud.showToast('🕸️ A cobra se soltou!', 'info');
+            break;
           case 'win':
           case 'lose':
             ended = true;
@@ -485,6 +682,30 @@ class App {
       if (ended) break;
     }
     return ended;
+  }
+
+  /**
+   * [itens] A cobra encostou num item especial: som, efeito visual e texto pt-BR.
+   * Itens de dano tremem a tela e piscam vermelho; os de bônus piscam dourado.
+   */
+  onItemEaten(ev) {
+    const villain = ev.kind === 'bolt' || ev.kind === 'ice' || ev.kind === 'web' || ev.kind === 'skull';
+    if (ev.shielded) {
+      this.audio.play('shieldPop');
+      this.safe(() => this.renderer?.explode(ev.x, ev.z, { color: 0x22d3ee, size: 0.9 }));
+      this.hud.showToast('🛡️ Protegida! O item não fez nada', 'success');
+      return;
+    }
+    this.audio.play(ITEM_SOUND[ev.kind]?.eat || (villain ? 'bomb' : 'eat'));
+    this.safe(() => this.renderer?.itemBurst?.(ev.kind, ev.x, ev.z));
+    if (villain) {
+      this.safe(() => this.renderer?.shake(ev.kind === 'skull' ? 2.2 : 1.4));
+      this.hud.flash('red');
+    } else {
+      this.hud.flash('gold');
+    }
+    const t = ITEM_TOAST[ev.kind]?.(ev);
+    if (t && !ev.fatal) this.hud.showToast(t.text, t.kind);
   }
 
   addItem(id, fn) {
@@ -509,16 +730,27 @@ class App {
 
   bindNet() {
     const net = this.net;
-    net.on('open', () => { this.hud.setConnection(true); this.setDevStatus('online'); });
+    net.on('open', () => {
+      this.hud.setConnection(true);
+      this.setDevStatus('online');
+      // [persist] Diz ao servidor que esta aba é um overlay, para entrar na eleição de dono da
+      // partida. Reenviado a cada reconexão: se o dono anterior caiu, esta aba pode ser promovida.
+      this.net.send('identify', { role: 'overlay' });
+    });
     net.on('close', () => { this.hud.setConnection(false); this.setDevStatus('offline — reconectando…'); });
     net.on('reconnecting', ({ attempt, delayMs }) => this.setDevStatus(`reconectando (${attempt}) em ${Math.round(delayMs / 1000)}s`));
     net.on('bad_message', () => console.warn('[net] mensagem inválida ignorada'));
 
     net.on('hello', (msg) => {
       // Re-sent after every reconnect: refresh stats/leaderboard/status.
+      // [persist] Reconectar NÃO reinicia a rodada nem reprocessa eventos: `applyHello` só
+      // aceita o estado de retomada no primeiro hello (ver `helloSeen`); os demais apenas
+      // atualizam placar, rankings e papel.
       this.applyHello(msg);
       if (this.latestLeaderboard) this.safe(() => this.renderer?.setLeader(this.latestLeaderboard.leader || null));
     });
+    // [persist] O servidor avisa quando o papel muda (promoção a dono depois que o outro saiu).
+    net.on('role', (msg) => this.applyRole(msg?.role));
     net.on('tiktok_status', (msg) => this.hud.setTiktokStatus(msg));
     net.on('viewers', (msg) => this.hud.setViewers(msg.count));
     net.on('stats', (msg) => { this.latestStats = msg; this.hud.setStats(msg); });
@@ -568,9 +800,14 @@ class App {
       this.monet(() => this.alerts?.gift(ev));
       this.monet(() => this.goals?.addGift(ev));
       if (count <= 0) return; // streak close of an already counted event: nothing to spawn
-      const fx = rule.effects && typeof rule.effects === 'object' ? rule.effects : { bombs: Number(rule.bombs) || 0 };
+      // [itens] `effects` (contrato antigo) + `combo` (espetáculo dos presentões) são aplicados
+      // juntos: os dois usam exatamente as mesmas chaves.
+      const baseFx = rule.effects && typeof rule.effects === 'object' ? rule.effects : { bombs: Number(rule.bombs) || 0 };
+      const fx = rule.combo && typeof rule.combo === 'object' ? { ...baseFx, ...rule.combo } : baseFx;
       const tier = rule.tier === 'supreme' ? 'supreme' : rule.tier === 'mega' || rule.effect === 'mega' ? 'mega' : 'normal';
-      const anyEffect = (fx.bombs | fx.food | fx.grow | fx.attack) > 0 || fx.shieldSec > 0 || fx.clearBombs === true;
+      const itemTotal = ITEM_FX_KEYS.reduce((sum, k) => sum + (Number(fx[k]) || 0), 0); // [itens]
+      const anyEffect = (fx.bombs | fx.food | fx.grow | fx.attack) > 0 || fx.shieldSec > 0
+        || fx.clearBombs === true || fx.clearAll === true || itemTotal > 0;
       if (rule.show || anyEffect) this.audio.play(tier === 'normal' ? 'gift' : 'mega');
       if (!this.state) return;
       const meta = {
@@ -580,13 +817,18 @@ class App {
       let popCell = null;
       const track = (events) => {
         if (!popCell) {
-          const first = events.find((e) => e.type === 'bomb_spawn' || e.type === 'food_spawn');
+          const first = events.find((e) => e.type === 'bomb_spawn' || e.type === 'food_spawn' || e.type === 'item_spawn');
           if (first) popCell = { x: first.x, z: first.z };
         }
         this.dispatch(events);
       };
-      // Effect order: sweep → direct damage → growth → food → bombs → shield.
-      if (fx.clearBombs === true) {
+      // Effect order: sweep → direct damage → growth → food → bombs → itens → shield.
+      // [itens] clearAll (supremo) limpa bombas E itens especiais de uma vez.
+      if (fx.clearAll === true) {
+        track(this.state.clearBombs());
+        track(this.state.clearItems?.() || []);
+        this.hud.showToast('🌌 ' + (ev.user?.nickname ?? 'Herói') + ' limpou TUDO do tabuleiro!', 'success');
+      } else if (fx.clearBombs === true) {
         track(this.state.clearBombs());
         this.hud.showToast('✨ ' + (ev.user?.nickname ?? 'Herói') + ' limpou as bombas!', 'success');
       }
@@ -597,6 +839,15 @@ class App {
         track(this.state.spawnBombs(fx.bombs, meta));
         if (this.state.snapshot.phase === 'playing') this.hud.flash('red');
       }
+      // [itens] Itens especiais do presente (⚡🧊🕸️☠️ / 💎⭐🧲⏱️).
+      for (const kind of ITEM_FX_KEYS) {
+        const n = Math.max(0, Math.trunc(Number(fx[kind]) || 0));
+        if (n > 0) track(this.state.spawnItem?.(kind, n, meta) || []);
+      }
+      // [itens] Efeitos por tempo pedidos direto pelo presente (sem passar por um item).
+      if (fx.starSec > 0) track(this.state.applyStar?.(fx.starSec) || []);
+      if (fx.magnetSec > 0) track(this.state.applyMagnet?.(fx.magnetSec) || []);
+      if (fx.fastSec > 0) track(this.state.applyFast?.(fx.fastSec) || []);
       if (fx.shieldSec > 0) track(this.state.applyShield(fx.shieldSec));
       if (rule.team === 'hero' && this.state.snapshot.phase === 'playing') this.hud.flash('green');
       if (!popCell && rule.show) popCell = this.randomFreeCell();
@@ -749,6 +1000,12 @@ class App {
   }
 
   runDevAction(action) {
+    // [itens] "item:bolt", "item:diamond", … → coloca 1 item especial no tabuleiro.
+    if (action.startsWith('item:')) {
+      const kind = action.slice(5);
+      if (this.state) this.dispatch(this.state.spawnItem?.(kind, 1, { giftName: 'Dev', nickname: 'Dev' }) || []);
+      return;
+    }
     switch (action) {
       case 'gift:rose': return this.simGift('rose');
       case 'gift:gg': return this.simGift('gg');
