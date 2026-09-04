@@ -26,18 +26,14 @@ const GOAL_GROWTH = 2;
 
 // Dicas rotativas: mostram o EFEITO, que é o que converte em presente.
 const CTA_TIPS = [
-  { ico: '🌹', name: 'Rosa',        fx: '1 bomba na cobra',        team: 'villain' },
-  { ico: '🎮', name: 'GG',          fx: 'comida dourada',          team: 'hero' },
-  { ico: '🍩', name: 'Rosquinha',   fx: '3 bombas',                team: 'villain' },
-  { ico: '🕊️', name: 'Tsuru',       fx: 'a cobra cresce +3',       team: 'hero' },
-  { ico: '🎉', name: 'Confete',     fx: 'chuva de 8 bombas',       team: 'villain' },
-  { ico: '🦢', name: 'Cisne',       fx: 'limpa TODAS as bombas',   team: 'hero' },
-  { ico: '🔫', name: 'Arma',        fx: '12 bombas + mordida',     team: 'villain' },
-  { ico: '🌌', name: 'Galáxia',     fx: 'escudo de 30 s',          team: 'hero' },
-  { ico: '🏍️', name: 'Moto',        fx: '20 bombas + atropelo',    team: 'villain' },
-  { ico: '🚀', name: 'Foguete',     fx: 'cresce +10 e escudo',     team: 'hero' },
-  { ico: '🦁', name: 'Leão',        fx: '40 BOMBAS DE UMA VEZ!',   team: 'villain' },
-  { ico: '🌠', name: 'Universo',    fx: 'o pacote SUPREMO',        team: 'hero' }
+  // [catálogo-6] Pedro pediu 3 vilões e 3 heróis, pareados por preço (1 / 30 / 100 moedas).
+  // As dicas alternam vilão e herói para o público sempre ver os dois lados.
+  { ico: '🌹', name: 'Rosa',      fx: '1 bomba na cobra',        team: 'villain' },
+  { ico: '🎮', name: 'GG',        fx: 'comida dourada',          team: 'hero' },
+  { ico: '🍩', name: 'Rosquinha', fx: '3 bombas + raio',         team: 'villain' },
+  { ico: '🫰', name: 'Coração',   fx: 'a cobra cresce +3',       team: 'hero' },
+  { ico: '🎉', name: 'Confete',   fx: '8 BOMBAS + gelo!',        team: 'villain' },
+  { ico: '🫶', name: 'Mãozinha',  fx: 'limpa tudo + escudo',     team: 'hero' }
 ];
 
 const AVATAR_COLORS = ['#22d3ee', '#fbbf24', '#fb7185', '#34d399', '#a78bfa', '#f472b6', '#60a5fa', '#f97316'];

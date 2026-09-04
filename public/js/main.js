@@ -28,14 +28,13 @@ const ERROR_QUIET_RESET_MS = 10000;
 // Dev-panel gift presets. Names match the pt-BR aliases in config/gifts.json (matching is
 // case/diacritic-insensitive); when online the server resolves the rule, offline we use `bombs`/`effect`.
 const SIM_GIFTS = {
-  rose:   { giftName: 'Rosa',    giftId: '5655', diamondCount: 1,     count: 1, team: 'villain', tier: 'normal',  effects: { bombs: 1 } },
-  gg:     { giftName: 'GG',      giftId: '',     diamondCount: 1,     count: 1, team: 'hero',    tier: 'normal',  effects: { food: 1 } },
-  crane:  { giftName: 'Tsuru de Papel', giftId: '', diamondCount: 99, count: 1, team: 'hero',    tier: 'normal',  effects: { grow: 3 } },
-  swan:   { giftName: 'Cisne',   giftId: '',     diamondCount: 699,   count: 1, team: 'hero',    tier: 'mega',    effects: { clearBombs: true } },
-  galaxy: { giftName: 'Galáxia', giftId: '',     diamondCount: 1000,  count: 1, team: 'hero',    tier: 'mega',    effects: { clearBombs: true, shieldSec: 30 } },
-  moto:   { giftName: 'Moto',    giftId: '',     diamondCount: 2988,  count: 1, team: 'villain', tier: 'mega',    effects: { bombs: 20, attack: 4 } },
-  lion:   { giftName: 'Leão',    giftId: '',     diamondCount: 29999, count: 1, team: 'villain', tier: 'supreme', effects: { bombs: 40, attack: 6 } },
-  universe: { giftName: 'Universo TikTok', giftId: '', diamondCount: 44999, count: 1, team: 'hero', tier: 'supreme', effects: { grow: 15, food: 10, clearBombs: true, shieldSec: 60 } }
+  // [catálogo-6] 3 vilões e 3 heróis pareados por preço (1 / 30 / 100), como o Pedro pediu.
+  rose:    { giftName: 'Rosa',             giftId: '5655', diamondCount: 1,   count: 1, team: 'villain', tier: 'normal', effects: { bombs: 1 } },
+  donut:   { giftName: 'Rosquinha',        giftId: '',     diamondCount: 30,  count: 1, team: 'villain', tier: 'normal', effects: { bombs: 3, bolt: 1 } },
+  confetti:{ giftName: 'Confete',          giftId: '',     diamondCount: 100, count: 1, team: 'villain', tier: 'mega',   effects: { bombs: 8, ice: 1, web: 1 } },
+  gg:      { giftName: 'GG',               giftId: '',     diamondCount: 1,   count: 1, team: 'hero',    tier: 'normal', effects: { food: 1 } },
+  heart:   { giftName: 'Coraçãozinho',     giftId: '',     diamondCount: 30,  count: 1, team: 'hero',    tier: 'normal', effects: { grow: 3, diamond: 1 } },
+  hands:   { giftName: 'Coração nas Mãos', giftId: '',     diamondCount: 100, count: 1, team: 'hero',    tier: 'mega',   effects: { clearBombs: true, shieldSec: 30, food: 3, star: 1 } }
 };
 
 // [itens] Chaves de efeito que viram itens no tabuleiro (a ordem é a de aplicação).
@@ -1008,13 +1007,11 @@ class App {
     }
     switch (action) {
       case 'gift:rose': return this.simGift('rose');
+      case 'gift:donut': return this.simGift('donut');
+      case 'gift:confetti': return this.simGift('confetti');
       case 'gift:gg': return this.simGift('gg');
-      case 'gift:crane': return this.simGift('crane');
-      case 'gift:swan': return this.simGift('swan');
-      case 'gift:galaxy': return this.simGift('galaxy');
-      case 'gift:moto': return this.simGift('moto');
-      case 'gift:lion': return this.simGift('lion');
-      case 'gift:universe': return this.simGift('universe');
+      case 'gift:heart': return this.simGift('heart');
+      case 'gift:hands': return this.simGift('hands');
       case 'chat': return this.simChat();
       case 'like': return this.simLike();
       case 'follow': return this.simFollow();
@@ -1067,7 +1064,7 @@ class App {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      const map = { '1': 'apple', '2': 'bomb', '3': 'gift:rose', '4': 'gift:lion', '5': 'gift:gg', '6': 'gift:galaxy', 'n': 'new_round', 'p': 'pause', 'h': 'hud' };
+      const map = { '1': 'apple', '2': 'bomb', '3': 'gift:rose', '4': 'gift:confetti', '5': 'gift:gg', '6': 'gift:hands', 'n': 'new_round', 'p': 'pause', 'h': 'hud' };
       const action = map[e.key.toLowerCase()];
       if (!action) return;
       e.preventDefault();
