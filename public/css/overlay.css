@@ -1,13 +1,30 @@
 /* public/css/overlay.css — TikTok Snake LIVE overlay styles (SPEC §8)
- * Portrait-first (1080×1920). Bands (portrait):
- *   0–10 %  title + TikTok status + viewers
- *  10–20 %  scoreboard, status, progress
- *  20–74 %  board (canvas) — only transient DOM (gift card, toasts, countdown, round end)
- *  74–86 %  leaderboard top 3 + CTA
- *  86–100 % faint chat feed (TikTok's own chat overlay covers this on phones)
- * All sizes are relative (rem based on vmin, vw/vh) — no fixed px widths.
- * Root font-size ≈ 2.3 vmin → ≈ 25 px at 1080 width, so 0.9 rem ≈ 22 px (min legible size after
- * TikTok compression). System fonts only (offline OBS).
+ *
+ * [layout] PALCO 9:16 TRAVADO — the whole overlay lives inside #safe, a container locked to a 9:16
+ * aspect ratio, centred in the window at the largest size that fits (letterbox/pillarbox, like a
+ * video player). Consequence: the composition is IDENTICAL at 405×720, 900×900 or 1280×720 — only
+ * its scale changes. Nothing inside may use vw/vh/vmin: those follow the WINDOW and would deform
+ * the layout. Use instead:
+ *   --u    stage unit = stage height / 100  (1 --u == 1 % of the stage height); set by main.js
+ *          sizeStage() and also mirrored on `html { font-size }`, so 1rem == 1 % of stage height.
+ *   cqw / cqh   container-query units on #safe (container-type: size) for pure-CSS cases.
+ * A stage-relative percentage is therefore `Npx` → never; `N * var(--u)` or `Ncqh` → always.
+ *
+ * ZONA SEGURA DO TIKTOK LIVE — vertical map, as fractions of the STAGE (not the window):
+ *   0–11 %   ZONA MORTA: covered by TikTok's own app bar / profile row. Decoration only.
+ *  11–20 %   compact header: VITÓRIAS × DERROTAS, round, TikTok status, viewers, progress
+ *  20–72 %   BOARD (the canvas) — the star. Only transient DOM (gift card, toasts, countdown,
+ *            round end), and never over the centre of the board.
+ *  72–79 %   monetization strip (#hud-money) — reserved for ui/goals.js + ui/alerts.js
+ *  79–100 %  ZONA MORTA: covered by TikTok's comments, buttons and gift bar. Nothing essential.
+ * Horizontally, textual content keeps a ~5 % margin on each side (--pad-x).
+ *
+ * Chat: the old 86–100 % chat band sat entirely under TikTok's native chat — wasted pixels. It is
+ * now a narrow, low-opacity left rail inside the board band (see .band-chat), so new viewers still
+ * see their name appear without covering the game.
+ *
+ * Root font-size ≈ 1 % of stage height → ≈ 19 px on a 1080×1920 stage, so 0.9rem ≈ 17 px (legible
+ * after TikTok's compression). System fonts only (offline OBS).
  */
 
 :root {
@@ -28,10 +45,29 @@
   --radius: 0.9rem;
   --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", "Liberation Mono", monospace;
+
+  /* [layout] Stage geometry. --stage-h/--stage-w are written by main.js sizeStage(); the CSS
+     fallback (100vh / that height × 9÷16, capped by the window width) keeps the very first paint
+     correct before the script runs. --u is 1 % of the stage height: the ONLY length unit the
+     overlay should scale with. */
+  --stage-h: min(100vh, 100vw * 16 / 9);
+  --stage-w: calc(var(--stage-h) * 9 / 16);
+  --u: calc(var(--stage-h) / 100);
+
+  /* [layout] TikTok LIVE safe-area map, as % of the stage height. Change them here only. */
+  --zone-dead-top: 11;    /* 0 → 11 %  : TikTok app bar / profile */
+  --zone-head: 20;        /* 11 → 20 % : compact header */
+  --zone-board: 72;       /* 20 → 72 % : the board */
+  --zone-money: 79;       /* 72 → 79 % : monetization strip */
+  /* 79 → 100 % : TikTok comments / buttons / gift bar — dead zone */
+
+  --pad-x: 5cqw;          /* ~5 % side margin for textual content */
 }
 
 html {
-  font-size: clamp(11px, 2.3vmin, 34px);
+  /* [layout] 1rem == 1 % of the stage height, so every rem-based size in this file scales with the
+     STAGE and not with the browser window. main.js overwrites this with an exact px value. */
+  font-size: var(--u);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -41,7 +77,8 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--ink);
+  /* Letterbox/pillarbox bars around the stage. */
+  background: #000;
   color: var(--text);
   font-family: var(--font);
   font-weight: 700;
@@ -51,6 +88,24 @@ html, body {
 }
 
 * { box-sizing: border-box; }
+
+/* [layout] THE STAGE — locked 9:16, centred, largest that fits ---------------------------- */
+.safe {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--stage-w);
+  height: var(--stage-h);
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  background: var(--ink);
+  /* Makes cqw/cqh inside resolve against the STAGE. `size` (not `inline-size`) is required so cqh
+     works; the box has an explicit width and height, so it is safe. */
+  container-type: size;
+  container-name: stage;
+  contain: layout paint;
+}
 
 .num {
   font-family: var(--mono);
@@ -62,8 +117,9 @@ html, body {
 .hidden { display: none !important; }
 
 /* Layers --------------------------------------------------------------------------- */
+/* [layout] absolute (not fixed): these fill the STAGE, so the renderer measures the stage box. */
 #stage {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
@@ -71,7 +127,7 @@ html, body {
 #stage canvas { display: block; width: 100% !important; height: 100% !important; }
 
 .hud {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 10;
   pointer-events: none;
@@ -97,12 +153,78 @@ html, body {
   backdrop-filter: blur(var(--glass-blur)) saturate(140%);
 }
 
-/* Portrait bands ----------------------------------------------------------------- */
-.band-top    { top: 0;    height: 10vh; padding: 1.2vh 3vw 0; flex-direction: column; justify-content: center; gap: 0.6vh; }
-.band-score  { top: 10vh; height: 10vh; padding: 0 3vw; flex-direction: column; justify-content: space-evenly; gap: 0; }
-.band-board  { top: 20vh; height: 54vh; }
-.band-leader { top: 74vh; height: 12vh; padding: 0.4vh 2.5vw; flex-direction: column; justify-content: center; gap: 0.35vh; }
-.band-chat   { top: 86vh; height: 14vh; padding: 0.6vh 3vw 1vh; align-items: flex-end; }
+/* [layout] Safe-area bands — all offsets in --u (1 % of the STAGE height) ------------------
+ * .band-top    0–11 %  : ZONA MORTA. Kept as a container for decoration only; hud.js still puts
+ *                        the title + status pills here, so they are scaled down and dimmed — if
+ *                        TikTok's app bar hides them nothing of value is lost.
+ * .band-score 11–20 %  : the real header (scoreboard / round / viewers / progress).
+ * .band-board 20–72 %  : the board. Transient DOM only.
+ * .band-money 72–79 %  : monetization strip (content owned by ui/goals.js + ui/alerts.js).
+ * .band-leader         : the VILÕES × HERÓIS battle, tucked into the top of the money strip's
+ *                        neighbourhood (64–72 %) so it stays above 79 %.
+ * .band-chat           : narrow left rail inside the board band, discreet.
+ */
+.band-top {
+  top: 0;
+  height: calc(var(--zone-dead-top) * var(--u));
+  padding: calc(1 * var(--u)) var(--pad-x) 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(0.5 * var(--u));
+  /* Dead zone: readable if TikTok's chrome is absent, never load-bearing. */
+  opacity: 0.72;
+  transform-origin: top center;
+}
+.band-score {
+  top: calc(var(--zone-dead-top) * var(--u));
+  height: calc((var(--zone-head) - var(--zone-dead-top)) * var(--u));
+  padding: 0 var(--pad-x);
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 0;
+}
+.band-board {
+  top: calc(var(--zone-head) * var(--u));
+  height: calc((var(--zone-board) - var(--zone-head)) * var(--u));
+}
+.band-leader {
+  top: calc((var(--zone-board) - 8) * var(--u));
+  height: calc(8 * var(--u));
+  padding: calc(0.3 * var(--u)) var(--pad-x);
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(0.3 * var(--u));
+}
+/* [layout] Reserved, styled, empty. The content agent fills #hud-money. */
+.band-money {
+  top: calc(var(--zone-board) * var(--u));
+  height: calc((var(--zone-money) - var(--zone-board)) * var(--u));
+  padding: calc(0.4 * var(--u)) var(--pad-x);
+  align-items: center;
+  justify-content: center;
+  gap: calc(0.6 * var(--u));
+}
+/* A faint plinth so the strip reads as a deliberate slot even before it has content. */
+.band-money::before {
+  content: "";
+  position: absolute;
+  inset: calc(0.3 * var(--u)) var(--pad-x);
+  border-radius: var(--radius);
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  background: linear-gradient(180deg, rgba(8, 12, 26, 0.35), rgba(8, 12, 26, 0.6));
+  pointer-events: none;
+  z-index: -1;
+}
+.band-money:not(:empty)::before { border-style: solid; border-color: rgba(255, 255, 255, 0.14); }
+/* [layout] Chat rail: bottom-left of the board band, inside the safe area, deliberately quiet. */
+.band-chat {
+  top: calc(var(--zone-head) * var(--u));
+  height: calc((var(--zone-board) - var(--zone-head) - 9) * var(--u));
+  right: auto;
+  width: 44cqw;
+  padding: 0 0 calc(0.5 * var(--u)) var(--pad-x);
+  align-items: flex-end;
+}
 
 /* Top band ------------------------------------------------------------------------ */
 .title-wrap { display: flex; justify-content: center; }
@@ -110,7 +232,7 @@ html, body {
   display: inline-flex;
   align-items: baseline;
   gap: 0.45em;
-  font-size: 1.55rem;
+  font-size: 1.35rem; /* [layout] dead zone: decoration, not load-bearing */
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -208,8 +330,8 @@ body.obs .pill-ws.on { display: none; }
   align-items: center;
   justify-content: center;
   gap: 1.2rem;
-  padding: 0.25rem 1.2rem;
-  min-height: 3.4rem;
+  padding: 0.2rem 1.2rem;
+  min-height: 3.2rem;
 }
 .score-col {
   display: flex;
@@ -330,9 +452,9 @@ body.obs .pill-ws.on { display: none; }
 .band-board { pointer-events: none; }
 .gift-slot {
   position: absolute;
-  left: 3vw;
-  top: 1.5vh;
-  width: min(52vw, 22rem);
+  left: var(--pad-x);
+  top: calc(1.2 * var(--u));
+  width: min(52cqw, 22rem);
 }
 .gift-card {
   position: relative;
@@ -484,13 +606,13 @@ body.obs .pill-ws.on { display: none; }
 
 .toasts {
   position: absolute;
-  right: 3vw;
-  top: 1.5vh;
+  right: var(--pad-x);
+  top: calc(1.2 * var(--u));
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.4rem;
-  max-width: 42vw;
+  max-width: 42cqw;
 }
 .toast {
   display: inline-flex;
@@ -541,7 +663,7 @@ body.obs .pill-ws.on { display: none; }
   box-shadow: 0 0 2.5rem rgba(34, 211, 238, 0.25), var(--shadow);
   -webkit-backdrop-filter: blur(var(--glass-blur));
   backdrop-filter: blur(var(--glass-blur));
-  max-width: 88vw;
+  max-width: 88cqw;
   animation: box-in 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 @keyframes box-in { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
@@ -604,7 +726,7 @@ body.obs .pill-ws.on { display: none; }
 }
 .confetti-piece {
   position: absolute;
-  top: -5vh;
+  top: -5cqh;
   display: block;
   border-radius: 0.1rem;
   opacity: 0.95;
@@ -612,7 +734,7 @@ body.obs .pill-ws.on { display: none; }
 }
 @keyframes confetti-fall {
   0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
-  100% { transform: translate3d(calc(var(--sx, 0) * 12vw), 110vh, 0) rotate(var(--rot, 360deg)); opacity: 0.8; }
+  100% { transform: translate3d(calc(var(--sx, 0) * 12cqw), 110cqh, 0) rotate(var(--rot, 360deg)); opacity: 0.8; }
 }
 
 /* Leader band: VILÕES × HERÓIS battle --------------------------------------------- */
@@ -856,44 +978,53 @@ body.obs .pill-ws.on { display: none; }
   50% { opacity: 1; box-shadow: 0 0 0.8rem rgba(34, 211, 238, 0.4), var(--shadow); }
 }
 
-/* Chat band ----------------------------------------------------------------------- */
+/* [layout] Chat rail ---------------------------------------------------------------------
+ * Was a full-width band at 86–100 % — entirely behind TikTok's native comment list, i.e. invisible.
+ * Kept (the client asked for "quando entrar uma pessoa o nome dela aparecer") but rebuilt as a
+ * narrow left rail inside the board band: pills hug their content, fade out towards the top, and
+ * sit at low opacity so the board stays the focus. Joins/follows also surface as toasts.
+ */
 .chat-feed {
   list-style: none;
   margin: 0; padding: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: flex-start;
   gap: 0.25rem;
-  width: min(70vw, 30rem);
+  width: 100%;
   max-height: 100%;
   overflow: hidden;
-  opacity: 0.85;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 22%);
+  opacity: 0.72;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 35%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 35%);
 }
 .chat-item {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
-  padding: 0.1rem 0.6rem 0.1rem 0.15rem;
+  gap: 0.3rem;
+  max-width: 100%;
+  font-size: 0.78rem;
+  padding: 0.08rem 0.55rem 0.08rem 0.12rem;
   border-radius: 999px;
-  background: rgba(8, 12, 26, 0.5);
+  background: rgba(8, 12, 26, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.08);
   animation: chat-in 0.3s ease-out both;
   transition: opacity 0.6s ease;
   min-width: 0;
 }
 .chat-item.fade { opacity: 0; }
-.chat-avatar { width: 1.5rem; height: 1.5rem; border-width: 1px; }
+.chat-avatar { width: 1.35rem; height: 1.35rem; border-width: 1px; }
 .chat-name { color: var(--cyan); white-space: nowrap; }
 .chat-text { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes chat-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
 
-/* Screen flashes (body class toggled by hud.flash / main) -------------------------- */
-body::after {
+/* Screen flashes (body class toggled by hud.flash / main) --------------------------
+ * [layout] The trigger class still lands on <body>, but the painted layer is #safe::after so the
+ * flash is clipped to the stage instead of colouring the letterbox bars. */
+.safe::after {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 8;
   pointer-events: none;
@@ -901,9 +1032,57 @@ body::after {
   background: radial-gradient(ellipse at center, transparent 40%, rgba(239, 68, 68, 0.75) 100%);
   transition: opacity 0.35s ease-out;
 }
-body.flash-red::after   { opacity: 1; transition: none; background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.15) 30%, rgba(239, 68, 68, 0.8) 100%); }
-body.flash-gold::after  { opacity: 1; transition: none; background: radial-gradient(ellipse at center, rgba(251, 191, 36, 0.12) 30%, rgba(251, 191, 36, 0.7) 100%); }
-body.flash-green::after { opacity: 1; transition: none; background: radial-gradient(ellipse at center, rgba(52, 211, 153, 0.1) 30%, rgba(52, 211, 153, 0.65) 100%); }
+body.flash-red   .safe::after { opacity: 1; transition: none; background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.15) 30%, rgba(239, 68, 68, 0.8) 100%); }
+body.flash-gold  .safe::after { opacity: 1; transition: none; background: radial-gradient(ellipse at center, rgba(251, 191, 36, 0.12) 30%, rgba(251, 191, 36, 0.7) 100%); }
+body.flash-green .safe::after { opacity: 1; transition: none; background: radial-gradient(ellipse at center, rgba(52, 211, 153, 0.1) 30%, rgba(52, 211, 153, 0.65) 100%); }
+
+/* [layout] ?safezone=1 — TikTok safe-area guides --------------------------------------
+ * Drawn inside the stage so the guides scale exactly like the layout they check. */
+.safezone {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sz-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px dashed rgba(255, 255, 255, 0.55);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.55);
+}
+.sz-zone .sz-label {
+  padding: 0.15rem 0.7rem;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  text-shadow: none;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+.sz-zone.dead  { background: rgba(239, 68, 68, 0.3); }
+.sz-zone.dead .sz-label { color: #fecaca; }
+.sz-zone.head  { background: rgba(34, 211, 238, 0.16); }
+.sz-zone.board { background: rgba(52, 211, 153, 0.1); align-items: flex-start; padding-top: 0.4rem; }
+.sz-zone.money { background: rgba(251, 191, 36, 0.22); }
+/* Side margins for text content. */
+.sz-side {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: var(--pad-x);
+  background: repeating-linear-gradient(
+    45deg, rgba(255, 255, 255, 0.14) 0 0.4rem, transparent 0.4rem 0.8rem);
+  border-inline: 1px dashed rgba(255, 255, 255, 0.35);
+}
+.sz-side.left { left: 0; }
+.sz-side.right { right: 0; }
 
 /* Dev panel (hidden in OBS mode) ------------------------------------------------- */
 #devpanel {
@@ -955,8 +1134,13 @@ body.flash-green::after { opacity: 1; transition: none; background: radial-gradi
 }
 body.obs { cursor: none; }
 body.obs #devpanel, body.obs .debug { display: none !important; }
+/* [layout] OBS: the capture source should already be 1080×1920, so the stage fills it and there are
+   no bars. When the source is a different shape the bars stay (correct 9:16 beats a stretched
+   image), but they are pure black and the stage itself has no visible frame. */
+body.obs .safe { box-shadow: none; }
 
-/* Single format by design: TikTok LIVE portrait (9:16). No landscape layout. */
+/* [layout] Single format by design: TikTok LIVE portrait (9:16), enforced by #safe. The window's
+   own aspect never re-lays anything out — it only decides how big the stage is drawn. */
 
 @media (prefers-reduced-motion: reduce) {
   .title-live, .legend, .stat-mini.danger, .stat-mini.shield, .progress-fill::after,

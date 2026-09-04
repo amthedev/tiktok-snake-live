@@ -12,6 +12,10 @@ import { loadConfig, saveLocalConfig } from './config.js';
 import { createNet } from './net.js';
 import { createAudio } from './audio.js';
 import { createHud } from './ui/hud.js';
+import { createAlerts } from './ui/alerts.js';   // [monet] alertas de entrada/seguidor/presentão
+import { createGoals } from './ui/goals.js';     // [monet] metas, ranking, dicas e duelo
+// [layout] 9:16 stage lock + ?safezone=1 guides.
+import { installStage, renderSafezone, safezoneRequested } from './ui/stage.js';
 
 const HELLO_TIMEOUT_MS = 2000;
 const HUD_HZ = 10;
@@ -73,13 +77,73 @@ class App {
     this.errors = { firstAt: 0, lastAt: 0, count: 0, lastToastAt: 0 };
     this.devStatus = document.getElementById('dev-status');
     this.gameReady = false;
+    this.disposeStage = null;    // [layout] set by boot(): tears down the stage resize listeners
+    this.alerts = null;          // [monet] fila de alertas (entrada / seguidor / compartilhar / presentão)
+    this.goals = null;           // [monet] metas, ranking, dicas e duelo
+  }
+
+  // ---- [monet] seção de monetização --------------------------------------------------------
+
+  /**
+   * Container da seção de monetização. Usa #hud-money quando o layout já o reservou; se ainda não
+   * existir, cria-o na hora (anexado ao #hud-leader ou ao root) para nunca quebrar o overlay.
+   */
+  ensureMoneyContainer(root) {
+    let node = document.getElementById('hud-money');
+    if (!node) {
+      node = document.createElement('section');
+      node.id = 'hud-money';
+      node.className = 'band band-money';
+      node.setAttribute('aria-label', 'Metas e presentes');
+      (document.getElementById('hud-leader') || root || document.body).appendChild(node);
+    }
+    return node;
+  }
+
+  /** Bônus disparado quando o público enche a barra da meta (goals.js → efeitos reais do jogo). */
+  onGoalReached(goal) {
+    try {
+      this.audio?.play('mega');
+      this.hud?.flash('gold');
+      this.hud?.showToast(goal?.toast || '🎯 Meta batida!', 'success');
+      if (!this.state) return;
+      if (goal?.reward === 'shield') {
+        this.dispatch(this.state.applyShield(Math.max(5, Number(goal.sec) || 20)));
+      } else if (goal?.reward === 'food') {
+        this.dispatch(this.state.spawnFood(Math.max(1, Number(goal.food) || 3), {
+          giftName: 'Meta do público', nickname: 'Público', team: 'hero'
+        }));
+      }
+    } catch (err) {
+      this.reportError(err, 'meta');
+    }
   }
 
   // ---- bootstrap ---------------------------------------------------------------------------
 
   async boot() {
+    // [layout] Lock the 9:16 stage before anything measures itself, so the HUD and the renderer
+    // both see the final geometry on their first read.
+    this.disposeStage = installStage({
+      onResize: () => this.safe(() => this.renderer?.resize())
+    });
+    renderSafezone(document.getElementById('safezone'), safezoneRequested());
+
     const root = document.getElementById('hud') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'hud' }));
     this.hud = createHud(root, { obs: this.config.obs });
+    // [monet] Alertas e metas: falhas aqui nunca podem impedir o jogo de subir.
+    try {
+      this.alerts = createAlerts(document.getElementById('hud-board') || root, { obs: this.config.obs });
+    } catch (err) {
+      console.error('[main] falha ao criar os alertas', err);
+      this.alerts = null;
+    }
+    try {
+      this.goals = createGoals(this.ensureMoneyContainer(root), { onGoal: (g) => this.onGoalReached(g) });
+    } catch (err) {
+      console.error('[main] falha ao criar as metas', err);
+      this.goals = null;
+    }
     this.audio = createAudio(this.config.audio, { autoResume: true });
     this.net = createNet(this.config.wsUrl, { log: (m, e) => console.warn(m, e) });
     this.bindNet();
@@ -148,7 +212,11 @@ class App {
   applyHello(hello) {
     this.hello = hello;
     if (hello.stats) { this.latestStats = hello.stats; this.hud.setStats(hello.stats); }
-    if (hello.leaderboard) { this.latestLeaderboard = hello.leaderboard; this.hud.setLeaderboard(hello.leaderboard); }
+    if (hello.leaderboard) {
+      this.latestLeaderboard = hello.leaderboard;
+      this.hud.setLeaderboard(hello.leaderboard);
+      this.monet(() => this.goals?.setLeaderboard(hello.leaderboard)); // [monet]
+    }
     if (hello.tiktok) this.hud.setTiktokStatus(hello.tiktok);
   }
 
@@ -160,6 +228,10 @@ class App {
     const token = ++this.roundToken;
     this.roundBusy = true;
     this.hud.hideOverlays();
+    // [monet] Nova rodada: limpa alertas pendentes e volta o carrossel para a meta (as metas
+    // continuam acumulando — são progresso da LIVE inteira, não de uma rodada só).
+    this.monet(() => this.alerts?.clearAll());
+    this.monet(() => this.goals?.newRound());
     try {
       // Apply config changes requested by the panel (set_config) before the state is reset.
       if (this.pendingConfig) {
@@ -454,14 +526,36 @@ class App {
       this.latestLeaderboard = msg;
       this.hud.setLeaderboard(msg);
       this.safe(() => this.renderer?.setLeader(msg.leader || null));
+      this.monet(() => this.goals?.setLeaderboard(msg)); // [monet] alimenta meta / ranking / duelo
     });
     net.on('gift', (msg) => this.onGift(msg));
     net.on('chat', (msg) => this.hud.pushChat(msg));
     net.on('like', (msg) => this.hud.showLike(msg));
-    net.on('follow', (msg) => this.hud.showSocial('follow', msg.user));
-    net.on('share', (msg) => this.hud.showSocial('share', msg.user));
-    net.on('member', (msg) => this.hud.showSocial('member', msg.user));
+    // [monet] Estes três passam pela fila de alertas (um por vez, com agrupamento de entradas).
+    // Sem a fila (falha ao criar), o toast antigo do HUD continua valendo como plano B.
+    net.on('follow', (msg) => this.social('follow', msg.user));
+    net.on('share', (msg) => this.social('share', msg.user));
+    net.on('member', (msg) => this.social('member', msg.user));
     net.on('command', (msg) => this.onCommand(msg));
+  }
+
+  /** [monet] Roda uma chamada de alerts/goals engolindo (mas registrando) qualquer exceção. */
+  monet(fn) {
+    try { return fn?.(); } catch (err) { console.warn('[monet] erro ignorado', err); return undefined; }
+  }
+
+  /** [monet] Entrada / seguidor / compartilhamento: fila de alertas, com o toast do HUD como plano B. */
+  social(kind, user) {
+    if (this.alerts) {
+      this.monet(() => {
+        if (kind === 'follow') this.alerts.follow(user);
+        else if (kind === 'share') this.alerts.share(user);
+        else this.alerts.member(user);
+      });
+      if (kind === 'follow') this.audio?.play('gift');
+      return;
+    }
+    this.hud.showSocial(kind, user);
   }
 
   onGift(ev) {
@@ -470,6 +564,9 @@ class App {
       const rule = ev.rule;
       const count = Number(ev.count) || 0;
       if (rule.show) this.hud.showGift(ev);
+      // [monet] Alerta CAMPEÃO (só mega/supremo — não duplica o card normal do HUD) + meta/recorde.
+      this.monet(() => this.alerts?.gift(ev));
+      this.monet(() => this.goals?.addGift(ev));
       if (count <= 0) return; // streak close of an already counted event: nothing to spawn
       const fx = rule.effects && typeof rule.effects === 'object' ? rule.effects : { bombs: Number(rule.bombs) || 0 };
       const tier = rule.tier === 'supreme' ? 'supreme' : rule.tier === 'mega' || rule.effect === 'mega' ? 'mega' : 'normal';
@@ -631,7 +728,24 @@ class App {
   async simFollow() {
     const nickname = rand(SIM_NAMES);
     if (await this.simApi('/api/sim/follow', { nickname })) return;
-    this.hud.showSocial('follow', { userId: 'sim:' + nickname, uniqueId: nickname, nickname, avatarUrl: null });
+    this.social('follow', { userId: 'sim:' + nickname, uniqueId: nickname, nickname, avatarUrl: null });
+  }
+
+  // [monet] Simulações novas: compartilhamento e entrada de público (uma pessoa ou um lote).
+  async simShare() {
+    const nickname = rand(SIM_NAMES);
+    if (await this.simApi('/api/sim/share', { nickname })) return;
+    this.social('share', { userId: 'sim:' + nickname, uniqueId: nickname, nickname, avatarUrl: null });
+  }
+
+  async simMember(times = 1) {
+    for (let i = 0; i < Math.max(1, times); i++) {
+      const nickname = rand(SIM_NAMES);
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await this.simApi('/api/sim/member', { nickname }))) {
+        this.social('member', { userId: 'sim:' + nickname + i, uniqueId: nickname, nickname, avatarUrl: null });
+      }
+    }
   }
 
   runDevAction(action) {
@@ -647,6 +761,9 @@ class App {
       case 'chat': return this.simChat();
       case 'like': return this.simLike();
       case 'follow': return this.simFollow();
+      case 'share': return this.simShare();          // [monet]
+      case 'member': return this.simMember(1);       // [monet]
+      case 'member:many': return this.simMember(12); // [monet] testa o agrupamento de entradas
       case 'apple':
         if (this.state) this.dispatch(this.state.spawnApple());
         return;
@@ -657,8 +774,14 @@ class App {
         return this.startRound();
       case 'pause':
         return this.setPaused(!this.paused);
-      case 'hud':
-        return this.hud.toggle();
+      case 'hud': {
+        this.hud.toggle();
+        // [monet] Alertas e metas acompanham o HUD (o atalho H some com tudo de uma vez).
+        const visible = !this.hud.root.classList.contains('hud-hidden');
+        this.monet(() => this.alerts?.setVisible(visible));
+        this.monet(() => this.goals?.setVisible(visible));
+        return;
+      }
       case 'audio': {
         const next = !this.audio.enabled;
         this.audio.setEnabled(next);
@@ -696,17 +819,19 @@ class App {
   }
 
   bindWindow() {
-    let resizeTimer = 0;
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => this.safe(() => this.renderer?.resize()), 80);
-    });
+    // [layout] Resizing the renderer is driven by installStage()'s onResize (see boot()), which
+    // fires AFTER --stage-w/--stage-h are rewritten — a plain window 'resize' listener here would
+    // race it and measure the previous stage size. The renderer also keeps its own ResizeObserver
+    // on #stage as a backstop.
     window.addEventListener('error', (e) => this.reportError(e.error || e.message, 'janela'));
     window.addEventListener('unhandledrejection', (e) => this.reportError(e.reason, 'promessa'));
     window.addEventListener('beforeunload', () => {
       try { this.net?.close(); } catch { /* ignore */ }
       try { this.audio?.dispose(); } catch { /* ignore */ }
       try { this.renderer?.dispose(); } catch { /* ignore */ }
+      try { this.disposeStage?.(); } catch { /* ignore */ } // [layout]
+      try { this.alerts?.destroy(); } catch { /* ignore */ } // [monet]
+      try { this.goals?.destroy(); } catch { /* ignore */ }  // [monet]
       if (this.rafId) cancelAnimationFrame(this.rafId);
     });
   }

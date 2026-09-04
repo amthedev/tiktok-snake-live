@@ -1,14 +1,20 @@
 // Portrait-first camera framing (SPEC §7.2). Solves the camera distance so the
 // board (incl. rim) fits inside 92 % of the viewport width and the vertical
 // band, then uses setViewOffset to move the board centre to the band centre.
+//
+// [layout] `width`/`height` here are the STAGE's size (#safe), not the window's — the renderer
+// measures its container, and the container is the locked 9:16 stage. So the band fractions below
+// are fractions of the stage and line up exactly with overlay.css's --zone-* map.
 import * as THREE from 'three';
 
 export const FOV = 36;
 export const ELEVATION_DEG = 55;
 // Single format by design (client request 2026-09-03): TikTok LIVE portrait 9:16.
-// The same band is used whatever the window aspect, so an accidentally-wide OBS
-// source still shows the board in the portrait position instead of re-laying out.
-export const BAND_PORTRAIT = [0.20, 0.74];
+// [layout] The board's SAFE STRIP is 20–72 % of the stage (--zone-head → --zone-board in
+// overlay.css). The VILÕES × HERÓIS battle panel occupies the last 8 % of it (.band-leader, 64–72 %),
+// so the camera frames the board into 20–64 % — otherwise the panel would sit on top of the board's
+// bottom rows. Keep in sync with overlay.css's --zone-* map and .band-leader's height.
+export const BAND_PORTRAIT = [0.20, 0.64];
 export const BAND_LANDSCAPE = BAND_PORTRAIT;
 export const WIDTH_FRACTION = 0.92;
 
