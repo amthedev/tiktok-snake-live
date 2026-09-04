@@ -74,6 +74,12 @@ function classifyError(err, mod) {
   if (msg.includes("isn't online") || msg.includes('not online') || msg.includes('offline')) return 'offline';
   if (msg.includes('rate limit') || msg.includes('too many connections')) return 'rate_limit';
   if (msg.includes('already connect')) return 'already';
+  // "Failed to retrieve Room ID / live status from all sources" (InvalidResponseCompositeError):
+  // TikTok did not hand us a room for this @. In practice this means the live is not on the air
+  // (or the profile is private/blocked in this region) — NOT a crash. Treat it as offline so the
+  // bridge waits for the live instead of showing a raw English error and backing off forever.
+  if (msg.includes('from all sources')) return 'no_room';
+  if (msg.includes('user_not_found') || msg.includes("user doesn't exist") || msg.includes('not exist')) return 'invalid_user';
   return 'unknown';
 }
 
@@ -82,6 +88,8 @@ function describeError(kind, err) {
   switch (kind) {
     case 'offline':
       return 'O usuário não está ao vivo. Aguardando a live começar…';
+    case 'no_room':
+      return 'Não encontrei a live desse @. Confira se o nome está certo e se a live está no ar — vou continuar tentando.';
     case 'rate_limit':
       return 'Limite de conexões do servidor de assinatura atingido. Nova tentativa em instantes (configure SIGN_API_KEY para evitar).';
     case 'invalid_user':
@@ -292,6 +300,7 @@ export class TikTokBridge extends EventEmitter {
     this.log.warn?.(`[tiktok] ${message}`);
     switch (kind) {
       case 'offline':
+      case 'no_room':
         this._setStatus({ status: 'waiting_live', roomId: null, message });
         this._scheduleLivePoll(LIVE_POLL_MS);
         break;
