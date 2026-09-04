@@ -365,9 +365,12 @@
   animation: money-hit 1.2s ease;
 }
 
-/* [celular] A faixa de monetização (72–83 %) é dividida com o painel do duelo: o cartão de metas
-   fica com a metade de baixo (~4,8 % da altura do palco). */
-.money-stage { position: relative; min-height: 3.9rem; }
+/* [celular] A faixa de monetização (72–79 %) é dividida com o painel do duelo: o cartão de metas
+   fica com a metade de baixo (2,8 % da altura do palco — ver --duel-h em overlay.css).
+   O min-height era 3.9rem, calculado quando o cartão ainda empilhava título e barra; agora que ele
+   é uma linha só (ver .money-card acima), 3.9rem sozinho estourava a faixa e empurrava o cartão
+   por cima do painel do duelo. 2.1rem é a altura da linha (barra de 1,9 rem + folga). */
+.money-stage { position: relative; min-height: 2.1rem; }
 
 /* O cartão é visível POR PADRÃO e a animação só o desliza para dentro (backwards, não `both`).
    Se o navegador engasgar e segurar a animação no quadro 0 — o que acontece de verdade quando a
@@ -381,6 +384,25 @@
 
 /* Atualização de dados (não troca de slide): entra já visível, sem reanimar. */
 .money-card.no-anim { animation: none; }
+
+/* [celular] CARTÃO EM UMA LINHA SÓ. Antes o cartão empilhava título (1,87 u) + barra (1,9 u) +
+   pontinhos, pedindo 5,26 u de altura numa faixa que só tem 2,8 u — ele vazava para dentro da zona
+   morta do TikTok e se sobrepunha ao painel do duelo (medido: título da meta em cima do nome do
+   líder). Nem o título nem a barra podem encolher: os dois estão no piso de legibilidade.
+   A saída é geométrica, não tipográfica — o que estava EMPILHADO passa a ficar LADO A LADO. O
+   título é curto ("META: ESCUDO LENDÁRIO") e a barra é elástica, então a linha fecha na largura
+   e o cartão cai para ~2,2 u, com as letras exatamente do mesmo tamanho. */
+.money-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+/* O cabeçalho não cresce nem encolhe abaixo do que o texto precisa; a barra fica com o resto. */
+.money-card > .money-head { flex: 0 1 auto; min-width: 0; margin-bottom: 0; }
+.money-card > .goal-bar,
+.money-card > .duel-bar { flex: 1 1 auto; min-width: 0; }
+/* O ranking também é uma linha só: título + o líder (ver o corte para TOP 1 em goals.js). */
+.money-card.card-rank > .rank-list { flex: 1 1 auto; min-width: 0; }
 
 .money-head {
   display: flex;
@@ -416,7 +438,7 @@
    o que o título e a barra de progresso já mostram, e é o tipo de texto que o cliente chamou de
    desnecessário. O título e a barra ficam, ambos bem grandes.
    Escondido por CSS (o nó continua sendo criado por goals.js, que é do outro agente). */
-.money-sub { display: none; }
+.money-sub { font-size: var(--fs-corpo); color: var(--muted); text-align: center; }  /* [compacto] 'Faltam X' é a frase que converte presente: fica visível e legível */
 
 /* Meta ------------------------------------------------------------------- */
 
@@ -479,7 +501,10 @@
 /* O líder é a prova social mais forte da tela: nome e moedas em destaque. */
 .rank-row.r1 .rank-nick { font-size: var(--fs-nome); font-weight: 900; }
 .rank-row.r1 .rank-coins { font-size: var(--fs-nome); }
-.rank-row.r1 .rank-avatar { width: 2.3rem; height: 2.3rem; }
+/* [celular] 2.3 → 2.0rem: a foto era o item mais alto do cartão e sozinha empurrava a borda de
+   baixo para 79,1 %, cruzando o limite da zona morta do TikTok. O nome e as moedas continuam em
+   --fs-nome (≈30 px); quem cede é a imagem, que sobrevive melhor a ficar menor que uma letra. */
+.rank-row.r1 .rank-avatar { width: 2rem; height: 2rem; }
 /* [celular] SÓ O 1º LUGAR. Medido: o cartão com 🥇🥈🥉 empilhados pedia 81 px numa faixa de 46 px
    e vazava até 86 % da altura — atrás da barra de presentes do TikTok, ou seja, invisível de
    qualquer jeito. Com 2º e 3º escondidos o cartão cabe e o líder aparece GRANDE (≈30 px), que é o

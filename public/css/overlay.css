@@ -15,8 +15,8 @@
  *  11–24 %   cabeçalho: VITÓRIAS × DERROTAS, sequência, status da rodada, progresso
  *  24–72 %   BOARD (the canvas) — the star. Only transient DOM (gift card, toasts, countdown,
  *            round end), and never over the centre of the board.
- *  72–83 %   monetization strip (#hud-money) — reserved for ui/goals.js + ui/alerts.js
- *  83–100 %  ZONA MORTA: covered by TikTok's comments, buttons and gift bar. Nothing essential.
+ *  72–79 %   monetization strip (#hud-money) — reserved for ui/goals.js + ui/alerts.js
+ *  79–100 %  ZONA MORTA: covered by TikTok's comments, buttons and gift bar. Nothing essential.
  * Horizontally, textual content keeps a ~5 % margin on each side (--pad-x).
  *
  * Chat: the old 86–100 % chat band sat entirely under TikTok's native chat — wasted pixels. It is
@@ -57,23 +57,37 @@
 
   /* [layout] TikTok LIVE safe-area map, as % of the stage height. Change them here only.
    *
-   * [celular] REEQUILÍBRIO 2026-09-04. O mapa antigo (11/20/72/79) deixava 21 % da altura VAZIA
-   * embaixo e espremia todo o texto em 9 % de cabeçalho + 7 % de monetização. Como o piso de
-   * legibilidade é ~22 px equivalentes a 1080 (compressão do TikTok vista no celular), texto grande
-   * simplesmente NÃO CABIA — daí os 13–16 px medidos. A correção é orçamentária, não estética:
+   * [celular] REEQUILÍBRIO 2026-09-04. O mapa antigo (11/20/72/79) espremia todo o texto em 9 % de
+   * cabeçalho + 7 % de monetização. Como o piso de legibilidade é ~22 px equivalentes a 1080
+   * (compressão do TikTok vista no celular), texto grande simplesmente NÃO CABIA — daí os 13–16 px
+   * medidos. A correção é orçamentária, não estética:
    *   cabeçalho  9 % → 13 %  (11 → 24)
    *   tabuleiro 52 % → 48 %  (24 → 72)  — continua sendo o maior bloco, de longe
-   *   monetização 7 % → 11 % (72 → 83)
-   *   zona morta de baixo 21 % → 17 % — segue folgada para a barra de presentes do TikTok
    * Os 4 % que o tabuleiro cede são imperceptíveis (o board é quadrado, limitado pela LARGURA:
-   * medido, a projeção nem encosta no novo limite vertical). Os 4 % da zona morta eram lixo. */
+   * medido, a projeção ocupa 84 % da largura e nem encosta no limite vertical).
+   *
+   * [celular] CORREÇÃO 2026-09-04 (2ª passada): --zone-money tinha sido esticado para 83, com a
+   * justificativa de que a zona morta de baixo (21 %) estava "vazia". Ela NÃO está vazia — está
+   * coberta pelo app. docs/DECISOES-LIVE.md §2 registra a medida oficial acordada com o cliente:
+   * "o app do TikTok cobre ~21 % da base (comentários, botões, barra de presentes)". Medido depois
+   * da mudança, o cartão RANKING DA LIVE (nome do líder + moedas, 30 px) ia até 82 % da altura, ou
+   * seja, POR BAIXO da UI do TikTok: aumentar a fonte não adianta se o pixel não chega ao
+   * espectador. Voltou para 79. A faixa de monetização fica com 7 %, e o que garante a legibilidade
+   * lá é a regra de ouro (menos elementos, cada um maior), não roubar pixel da zona morta. */
   --zone-dead-top: 11;    /* 0 → 11 %  : TikTok app bar / profile */
   --zone-head: 24;        /* 11 → 24 % : cabeçalho (placar + status + progresso) */
   --zone-board: 72;       /* 24 → 72 % : the board */
-  --zone-money: 83;       /* 72 → 83 % : monetization strip */
-  /* 83 → 100 % : TikTok comments / buttons / gift bar — dead zone */
+  --zone-money: 79;       /* 72 → 79 % : monetization strip */
+  /* 79 → 100 % : TikTok comments / buttons / gift bar — dead zone */
 
   --pad-x: 5cqw;          /* ~5 % side margin for textual content */
+
+  /* [celular] A faixa de monetização (72–79 %, 7 % de altura) é dividida entre DUAS coisas: o duelo
+     em cima e o carrossel de metas embaixo. --duel-h é o único número que decide o corte, para as
+     duas bandas nunca se sobreporem nem sobrar buraco — elas ladrilham a faixa por construção.
+     4.2 é o valor MEDIDO do cartão do duelo depois de tirar a linha duplicada de líderes por time
+     (battle-cols, ver hud.js): 4,1 u + folga. Sobram 2,8 u para o carrossel de metas. */
+  --duel-h: 4.2;
 
   /* [celular] ESCALA TIPOGRÁFICA — piso duro de legibilidade -----------------------------------
    * Unidade: 1rem == 1 % da ALTURA do palco. Num palco 1080×1920 → 1rem == 19,2 px, e é nessa
@@ -225,23 +239,23 @@ html, body {
  * ESPREMIA o 3D. Medido: com o texto no tamanho legível o painel precisava de 12 % e a câmera
  * caía para 0.60 — o tabuleiro encolhia de 92 % para 78 % da largura do palco (-15 %). Como o
  * tabuleiro é O ESPETÁCULO, quem se mudou foi o painel: ele é conteúdo de MONETIZAÇÃO (nomes de
- * quem mandou presente) e agora divide a faixa 72–83 % com as metas, empilhado.
+ * quem mandou presente) e agora divide a faixa 72–79 % com as metas, empilhado.
  * Resultado: a câmera volta a enquadrar 24–72 %, o tabuleiro volta aos 92 % de largura (idêntico
  * ao layout antigo) e o texto continua grande. */
 .band-leader {
   top: calc(var(--zone-board) * var(--u));
-  height: calc(4.6 * var(--u));
+  height: calc(var(--duel-h) * var(--u));
   padding: 0 var(--pad-x);
   flex-direction: column;
   justify-content: center;
   gap: calc(0.2 * var(--u));
 }
 /* [layout] Reserved, styled, empty. The content agent fills #hud-money.
-   [celular] Agora ocupa a METADE DE BAIXO da faixa de monetização (o duelo ficou com a de cima),
-   o que a mantém dentro de 72–83 % sem nunca tocar o tabuleiro. */
+   [celular] Ocupa a METADE DE BAIXO da faixa de monetização (o duelo ficou com a de cima),
+   o que a mantém dentro de 72–79 % sem nunca tocar o tabuleiro. */
 .band-money {
-  top: calc((var(--zone-board) + 4.6) * var(--u));
-  height: calc((var(--zone-money) - var(--zone-board) - 4.6) * var(--u));
+  top: calc((var(--zone-board) + var(--duel-h)) * var(--u));
+  height: calc((var(--zone-money) - var(--zone-board) - var(--duel-h)) * var(--u));
   padding: 0 var(--pad-x);
   align-items: center;
   justify-content: center;

@@ -166,7 +166,14 @@ export function createGoals(container, opts = {}) {
   let badgeTimer = 0;
   let destroyed = false;
 
-  const SLIDES = ['goal', 'rank', 'cta', 'duel'];
+  // [celular] O cartão 'duel' SAIU do carrossel. Ele desenhava a MESMA disputa VILÕES × HERÓIS que
+  // o painel fixo do duelo (band-leader, hud.js) já mostra o tempo todo, logo acima — a mesma
+  // informação duas vezes, em 7 % de altura disputados por dois painéis que juntos pediam 12 %.
+  // Fica o painel FIXO (o duelo é a tensão que segura o espectador: docs/DECISOES-LIVE.md §6, "o
+  // vilão que chegou na rodada 40 ainda pode ganhar A RODADA") e o carrossel fica com o que é
+  // rotativo por natureza: meta, ranking da live e a dica de qual presente faz o quê.
+  // Efeito colateral bom: com 3 cartões em vez de 4, cada um volta a cada 24 s em vez de 32 s.
+  const SLIDES = ['goal', 'rank', 'cta'];
 
   function goalTarget(index = state.goalIndex) {
     if (index < GOAL_STEPS.length) return GOAL_STEPS[index].coins;
@@ -256,8 +263,15 @@ export function createGoals(container, opts = {}) {
     head.append(el('span', 'money-ico', '🏆'), el('span', 'money-title', 'RANKING DA LIVE'));
     card.appendChild(head);
 
+    // [celular] TOP 3 → TOP 1. A faixa de monetização tem 7 % da altura do palco (72–79 %, limite
+    // real do TikTok) e é dividida com o painel fixo do duelo, sobrando 2,8 % para este cartão.
+    // Medido com três linhas: o cartão pedia 4,66 % e terminava em 80,1 % — POR BAIXO da barra de
+    // comentários e presentes do TikTok, ou seja, o 2º e o 3º lugar não chegavam ao espectador de
+    // qualquer jeito. Entre mostrar três nomes que ninguém vê e um nome grande que todo mundo lê, a
+    // regra do cliente ("menos elementos, cada um maior") decide: fica só o líder, na mesma linha
+    // do título, e o cartão cai para ~2,1 %.
     const top = (state.overallTop.length ? state.overallTop : [...state.heroTop, ...state.villainTop]
-      .sort((a, b) => num(b.coins) - num(a.coins))).slice(0, 3);
+      .sort((a, b) => num(b.coins) - num(a.coins))).slice(0, 1);
 
     // [compacto] O ranking mantém o TOP 3 (o 2º e o 3º são o que fazem o 1º ser disputado), mas
     // deixa de ser três linhas iguais e miúdas: o líder ganha a classe `rank-lead` para o CSS

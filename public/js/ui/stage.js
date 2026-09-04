@@ -31,8 +31,8 @@ export const ZONES = [
   { from: 0,  to: 11,  kind: 'dead',  label: 'ZONA MORTA · barra do TikTok' },
   { from: 11, to: 24,  kind: 'head',  label: 'CABEÇALHO · placar e status' },
   { from: 24, to: 72,  kind: 'board', label: 'TABULEIRO · área segura' },
-  { from: 72, to: 83,  kind: 'money', label: 'MONETIZAÇÃO · metas e presentes' },
-  { from: 83, to: 100, kind: 'dead',  label: 'ZONA MORTA · comentários e presentes' }
+  { from: 72, to: 79,  kind: 'money', label: 'MONETIZAÇÃO · metas e presentes' },
+  { from: 79, to: 100, kind: 'dead',  label: 'ZONA MORTA · comentários e presentes' }
 ];
 
 /**

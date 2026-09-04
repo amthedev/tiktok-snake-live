@@ -292,6 +292,9 @@ export function createHud(root, opts = {}) {
   // [compacto] "DUELO DESTA RODADA · zera a cada rodada" tinha 39 caracteres em 11px — a menor
   // e mais ilegível linha da tela, explicando uma regra que ninguém precisa saber para jogar
   // junto. Fica só o rótulo curto, que agora cabe num tamanho legível.
+  // [compacto] Rótulo removido da tela: 'VILÕES x HERÓIS' logo acima já identifica o painel.
+  // O nó permanece (oculto por CSS) porque setText() abaixo ainda o alimenta e ele serve de
+  // documentação viva do escopo (rodada x live) para quem for depurar.
   const battleScope = el('div', 'battle-scope', 'DUELO DA RODADA');
   const tug = el('div', 'tug');
   const tugVillain = el('div', 'tug-fill villain');
@@ -304,7 +307,15 @@ export function createHud(root, opts = {}) {
   const colVillain = el('ul', 'team-col villain');
   const colHero = el('ul', 'team-col hero');
   battleCols.append(colVillain, colHero);
-  battleBox.append(battleHead, battleScope, tug, battleCols);
+  // [celular] battleCols FICA FORA DA TELA. Ele mostrava o maior doador de cada time — a MESMA
+  // informação que o cartão RANKING DA LIVE já mostra logo abaixo, com o nome maior (30 px).
+  // Medido: a faixa de monetização tem 7 % da altura (72–79 %, limite do TikTok — ver --zone-money),
+  // o duelo pedia 6,85 % e o cartão de metas 5,26 %: 12 % em 7 %, e os dois se sobrepunham na tela.
+  // Como manda a regra do cliente ("menos elementos, cada um maior"), quem sai é a duplicata:
+  // battleCols custava 2,6 % de altura para repetir dois nomes. Sem ele o duelo cabe em ~4,25 %.
+  // As listas continuam existindo e sendo preenchidas (setLeaderboard escreve nelas sem `if`
+  // extra); apenas não são anexadas ao cartão, então nada é desenhado.
+  battleBox.append(battleHead, battleScope, tug);
 
   // Legacy overall top-3 (only shown when the payload has no team data — old servers).
   const legacyBox = el('div', 'glass leaderboard hidden');
@@ -488,8 +499,10 @@ export function createHud(root, opts = {}) {
     const perRound = battle === lb?.round;
     const vCoins = Math.max(0, Number(battle?.villain?.coins) || 0);
     const hCoins = Math.max(0, Number(battle?.hero?.coins) || 0);
-    const vTop = Array.isArray(battle?.villain?.top) ? battle.villain.top.slice(0, 3) : [];
-    const hTop = Array.isArray(battle?.hero?.top) ? battle.hero.top.slice(0, 3) : [];
+    // [compacto] Só o líder de cada time: 6 nomes miúdos viraram 1 grande e legível por lado.
+    // Montar mais linhas custaria carregar avatares que nunca seriam pintados.
+    const vTop = Array.isArray(battle?.villain?.top) ? battle.villain.top.slice(0, 1) : [];
+    const hTop = Array.isArray(battle?.hero?.top) ? battle.hero.top.slice(0, 1) : [];
     // [compacto] Rótulo curto: cabe legível e não gasta a linha explicando uma regra interna.
     const scopeTxt = perRound ? 'DUELO DA RODADA' : 'DUELO DA LIVE';
     setText(battleScope, 'scope', scopeTxt);
@@ -667,10 +680,16 @@ export function createHud(root, opts = {}) {
   }
 
   // ---- toasts -------------------------------------------------------------------------
+  // [celular] O texto é truncado AQUI, no único ponto por onde todos os toasts passam, e não em
+  // cada chamador. Medido na rajada: "✨ <apelido> limpou as bombas!" com um apelido longo (o
+  // TikTok permite nomes bem compridos) esticava o toast até 110 % da largura do palco e o texto
+  // era cortado pelo #safe { overflow: hidden }. Havia chamadores em main.js interpolando
+  // `ev.user.nickname` cru; cortar na origem protege também qualquer chamador futuro.
+  const TOAST_MAX_CHARS = 64;
   function showToast(text, kind = 'info') {
     const k = KIND_ICON[kind] ? kind : 'info';
     const t = el('div', 'toast ' + k);
-    t.append(el('span', 'toast-ico', KIND_ICON[k]), el('span', 'toast-text', String(text ?? '')));
+    t.append(el('span', 'toast-ico', KIND_ICON[k]), el('span', 'toast-text', truncate(String(text ?? ''), TOAST_MAX_CHARS)));
     toasts.appendChild(t);
     while (toasts.children.length > TOAST_MAX) toasts.removeChild(toasts.firstChild);
     setT(() => {
