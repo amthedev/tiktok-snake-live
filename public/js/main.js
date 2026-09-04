@@ -541,6 +541,10 @@ class App {
       try {
         switch (ev.type) {
           case 'move':
+            // [teclado] Clique só quando ela MUDA de direção — é a curva que soa como alguém
+            // apertando a tecla. Tocar a cada passo viraria um zumbido constante.
+            if (this.lastDir !== undefined && ev.dir !== this.lastDir) this.audio.play('key');
+            this.lastDir = ev.dir;
             break;
           case 'eat_apple':
             this.removeItem('apple', 'eaten');

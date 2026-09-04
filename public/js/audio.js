@@ -32,7 +32,10 @@ const MIN_GAP_MS = {
   gemSpawn: 90, diamond: 120,
   starSpawn: 150, star: 300,
   magnet: 200, clock: 200,
-  shieldPop: 120
+  shieldPop: 120,
+  // [teclado] A cobra pode virar a cada passo; 55 ms deixa passar cliques rápidos seguidos
+  // (que é o que dá a sensação de alguém digitando) sem virar zumbido.
+  key: 55
 };
 
 /**
@@ -164,6 +167,19 @@ export function createAudio(enabled = true, opts = {}) {
   // ---- effects ----------------------------------------------------------------------------
 
   const FX = {
+    // [teclado] Clique de teclado mecânico a cada curva da cobra: passa a sensação de que
+    // alguém está no controle. Um switch real tem três camadas — o "thock" grave da batida no
+    // fundo, o estalo agudo do mecanismo e um respingo de ressonância do plástico. Cada toque
+    // varia um pouco de tom e volume, senão a repetição vira metralhadora.
+    key() {
+      const v = 0.86 + Math.random() * 0.28;        // variação por toque
+      // 1. thock: corpo grave e curto
+      tone({ type: 'sine', freq: 168 * v, freqEnd: 96, dur: 0.045, gain: 0.09, attack: 0.001 });
+      // 2. estalo do mecanismo: ruído bem curto e agudo
+      noise({ dur: 0.026, gain: 0.075, filter: 'bandpass', freq: 2650 * v, q: 1.5 });
+      // 3. ressonância da caixa, quase subliminar
+      tone({ type: 'triangle', freq: 1180 * v, dur: 0.03, gain: 0.022, at: 0.006, attack: 0.001 });
+    },
     eat() {
       // Rising pentatonic blip: pleasant even when repeated many times.
       const semis = PENTATONIC[eatStep % PENTATONIC.length];
