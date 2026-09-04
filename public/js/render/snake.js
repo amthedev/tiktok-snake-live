@@ -79,6 +79,8 @@ export class Snake {
     this.sat = 1;            // 1 = colourful, 0 = grey (loss)
     this.bulges = [];        // swallowed-apple bulges travelling down the body {s, amp}
     this.headScalePulse = 0;
+    this.jawOpen = 0;        // [boca] 0 = fechada, 1 = escancarada (suavizado no update)
+    this.jawChomp = 0;       // [boca] mordida rápida ao engolir
     this.headAngle = 0;
     this.headAngleInit = false;
     this.roll = 0;
@@ -209,11 +211,22 @@ export class Snake {
     skull.scale.set(1.0, 0.82, 1.18);
     skull.castShadow = true;
     inner.add(skull);
+    // [boca] Mandíbula com pivô próprio: o focinho passa a girar em torno da articulação
+    // (atrás e um pouco acima dele) para abrir de verdade, em vez de ser uma peça fixa.
+    this.jaw = new THREE.Group();
+    this.jaw.position.set(0, -0.02, -0.12);   // articulação
+    inner.add(this.jaw);
     const snout = new THREE.Mesh(new THREE.SphereGeometry(0.27, 24, 18), this.headMat);
     snout.scale.set(0.92, 0.62, 0.9);
-    snout.position.set(0, -0.06, -0.3);
+    snout.position.set(0, -0.04, -0.18);      // relativo ao pivô
     snout.castShadow = true;
-    inner.add(snout);
+    this.jaw.add(snout);
+    // Interior da boca: só aparece quando ela abre, e dá profundidade à mordida.
+    const mouthMat = new THREE.MeshStandardMaterial({ color: 0x7f1d34, roughness: 0.55, side: THREE.DoubleSide });
+    const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.23, 20, 14), mouthMat);
+    mouth.scale.set(0.85, 0.5, 0.85);
+    mouth.position.set(0, 0.02, -0.16);
+    this.jaw.add(mouth);
     // Nostrils.
     const nostrilGeo = new THREE.SphereGeometry(0.03, 8, 8);
     const nostrilMat = new THREE.MeshStandardMaterial({ color: 0x062a24, roughness: 0.6 });
@@ -325,6 +338,8 @@ export class Snake {
   /** Called when an apple is eaten: gulp pulse + a bulge travelling down the body. */
   onEat() {
     this.headScalePulse = 1;
+    this.jawChomp = 1;  // [boca] fecha de vez com força — a mordida
+
     this.bulges.push({ s: 0, amp: 0.14 });
     if (this.bulges.length > 12) this.bulges.shift();
   }
@@ -528,6 +543,21 @@ export class Snake {
     this.headScalePulse = damp(this.headScalePulse, 0, 7, dt);
     const sc = 1 + this.headScalePulse * 0.28;
     this.headInner.scale.set(sc, sc, this.headScalePulse < 0 ? 1 - this.headScalePulse * 0.3 : sc);
+
+    // [boca] Abre conforme a comida se aproxima: fechada longe, escancarada ao alcance de
+    // uma casa. Some um bocejo lento para ela nunca parecer congelada, e a mordida do onEat.
+    if (this.jaw) {
+      let alvo = 0;
+      if (this.appleCell && this.visible) {
+        const d = this.headPos.distanceTo(this.appleWorld) / CELL;
+        if (d < 2.6) alvo = Math.min(1, (2.6 - d) / 1.6);
+      }
+      alvo = Math.max(alvo, 0.12 + 0.1 * Math.sin(elapsed * 1.7)); // respiração
+      this.jawChomp = damp(this.jawChomp, 0, 12, dt);
+      this.jawOpen = damp(this.jawOpen, alvo, 9, dt);
+      const abertura = Math.max(0, this.jawOpen - this.jawChomp * 1.4);
+      this.jaw.rotation.x = -abertura * 0.72;  // gira para baixo (radianos)
+    }
 
     // Eyes: look toward the apple (head-local yaw/pitch, clamped), else drift forward.
     let yaw = 0, pitch = 0;
