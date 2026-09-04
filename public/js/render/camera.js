@@ -26,7 +26,12 @@ export const ELEVATION_DEG = 55;
 // (WIDTH_FRACTION = 0.92) e sobram ~41 px de folga vertical: tamanho idêntico ao layout original.
 export const BAND_PORTRAIT = [0.24, 0.72];
 export const BAND_LANDSCAPE = BAND_PORTRAIT;
-export const WIDTH_FRACTION = 0.92;
+export const WIDTH_FRACTION = 0.98;
+// [enquadramento] 2026-09-04: com 0.92 a câmera resolvia a distância pela LARGURA e o tabuleiro
+// terminava em ~58,8 % da altura, deixando um vão de 13 % até o painel do duelo (72 %) — e as
+// decorações laterais do cenário passavam por baixo dele, dando a impressão de que o painel
+// tapava o jogo. Com 0.98 o limite volta a ser a ALTURA da faixa: o tabuleiro cresce e encosta
+// no painel sem invadi-lo.
 
 const _v = new THREE.Vector3();
 const _corners = new Array(8).fill(null).map(() => new THREE.Vector3());
