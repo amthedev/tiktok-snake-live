@@ -68,11 +68,19 @@ function avatarNode(user, className = 'al-avatar') {
     const img = document.createElement('img');
     img.alt = '';
     img.decoding = 'async';
-    img.loading = 'lazy';
+    // [foto] `eager`, não `lazy`: o card do alerta vive ~4 s e a foto já nasce visível. Com
+    // `lazy` o navegador pode adiar o decode para além da vida do card (e numa aba throttled
+    // não decodifica nunca), e aí o alerta ficaria só com as iniciais.
+    img.loading = 'eager';
+    img.fetchPriority = 'high';
     img.referrerPolicy = 'no-referrer';
     img.onload = () => wrap.classList.add('has-img');
     img.onerror = () => { img.remove(); wrap.classList.remove('has-img'); };
     img.src = user.avatarUrl;
+    // [foto] `data:` e imagens em cache podem já estar completas aqui: nesse caso o `onload`
+    // pode não disparar (e em aba throttled não dispara mesmo), e sem `.has-img` o CSS deixa
+    // a foto em opacity:0 — o card cairia nas iniciais mesmo com a imagem já carregada.
+    if (img.complete && img.naturalWidth > 0) wrap.classList.add('has-img');
     wrap.appendChild(img);
   }
   return wrap;

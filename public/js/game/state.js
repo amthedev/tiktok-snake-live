@@ -156,7 +156,10 @@ export class GameState {
     // continua reproduzível exatamente como antes.
     this._cycle = buildCycle(this._w, this._h);
     this._cycleSeed = null;
-    this._aiOpts = { shortcutMaxFill: this._config.shortcutMaxFill, allowShortcuts: true };
+    // [ia-pro] rng injetável: a IA usa só para desempatar jogadas equivalentes, então as
+    // rodadas continuam determinísticas para a mesma semente (testes) mas duas rodadas
+    // iguais não desenham a mesma trajetória na tela.
+    this._aiOpts = { shortcutMaxFill: this._config.shortcutMaxFill, allowShortcuts: true, rng, foods: [] };
 
     this._roundId = 0;
     this._bombSeq = 0; // bomb ids are unique for the lifetime of the instance
@@ -234,7 +237,13 @@ export class GameState {
     // Faixa de atalho: 60%..115% do configurado, limitada a [0, 1].
     const base = this._config.shortcutMaxFill;
     const factor = 0.6 + this._rng() * 0.55;
-    this._aiOpts = { shortcutMaxFill: Math.min(1, Math.max(0, base * factor)), allowShortcuts: true };
+    // [ia-pro] preserva rng e foods entre rodadas (ver construtor).
+    this._aiOpts = {
+      shortcutMaxFill: Math.min(1, Math.max(0, base * factor)),
+      allowShortcuts: true,
+      rng: this._rng,
+      foods: [],
+    };
   }
 
   /** 'countdown' → 'playing'. Returns [{ type: 'start', roundId }] (empty if not in countdown). */
@@ -329,8 +338,15 @@ export class GameState {
     }
 
     // The AI is blind to bombs on purpose: bombs on the route are hit, not dodged.
-    // It chases the NEAREST food along the cycle (main apple or a hero bonus food).
-    let move = nextMove(this._cycle, snake, this._nearestFood(head), this._aiOpts);
+    // [ia-pro] A IA agora escolhe o alvo pela distância REAL no tabuleiro, então passamos a
+    // maçã como alvo principal e as comidas bônus em opts.foods; ela pega a mais perto de
+    // verdade (antes era "a mais perto ao longo do ciclo", o que causava as voltas largas).
+    const aiOpts = this._aiOpts;
+    const foods = aiOpts.foods;
+    foods.length = 0;
+    for (const f of this._food.values()) foods.push(f.cell);
+    const target = this._apple >= 0 ? this._apple : this._nearestFood(head);
+    let move = nextMove(this._cycle, snake, target, aiOpts);
     if (!this._isLegalTarget(head, move.cell, false)) {
       // Unreachable while the invariant holds; keeps the round alive instead of freezing.
       move = this._emergencyMove(head);

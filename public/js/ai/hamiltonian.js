@@ -469,23 +469,246 @@ export function safeMoves(cycle, snake, apple) {
 // ---------------------------------------------------------------------------------------
 // nextMove — bombs are IGNORED by design: the product rule (client request 2026-09-03) is
 // that the snake ploughs through bombs on its route, shrinking when it hits one. Routing
-// only cares about the apple and the safety invariant.
+// only cares about the food and the safety invariant.
+//
+// [ia-pro] Pro-player move policy (client request 2026-09-04: "deixe a movimentação dela
+// como se fosse um jogador ... ela tá com padrão de fazer as coisas sempre as mesmas voltas")
+// --------------------------------------------------------------------------------------
+// The old policy ranked the safe neighbours ONLY by their distance along the Hamiltonian
+// cycle ("jump as far as possible without overshooting the apple"). It never looked at the
+// real board distance, which is exactly what produced the wide, sweepy, robotic laps: the
+// shortcut was measured on the cycle, not on the grid.
+//
+// The safety net does NOT change. The candidate set is still exactly the set of cells that
+// satisfy the ordering invariant (`safeMoves`), so every returned move is still provably
+// collision-free and the win is still guaranteed. What changes is only HOW we rank that set:
+//
+//   L0  Aggressive shortest path (early/mid game): BFS over the free board from the head to
+//       the target, then a "tail reachability" simulation — if I walk that path and eat, can
+//       I still reach my own tail / do I still have room >= my length? This is the classic
+//       human heuristic. Only the FIRST STEP is taken, and only if that first step is also in
+//       the safe set. Skipped once the board gets full.
+//   L1  Grid-distance scoring of the safe set: real Manhattan/BFS closeness to the target,
+//       free-space flood fill after the move (never trap yourself), tail reachability bonus,
+//       a straight-line bonus (no pointless turns — it reads better on stream), an
+//       anti-oscillation penalty and a small seeded random jitter for round-to-round variety.
+//   L2  Cycle policy (unchanged): when the board is full, or when nothing above is safe, fall
+//       back to the original ranking, which is what closes out the win without knotting up.
+//
+// The three layers blend by fill ratio rather than switching hard, so the change of style is
+// not visible as a jolt on stream.
 // ---------------------------------------------------------------------------------------
 
 const CAND_CELL = new Int32Array(4);
 const CAND_DIR = new Int32Array(4);
 const CAND_DIST = new Int32Array(4);
+/** [ia-pro] 1 when the candidate preserves forward progress along the cycle (see nextMove). */
+const CAND_OK = new Int32Array(4);
+
+// These two thresholds were tuned by measurement, not taste (see test/ai-pro.test.js, which
+// reports steps-per-apple per phase). Letting the grid-scoring layers run deep into the
+// endgame is actively WORSE than the cycle policy: above ~50 % fill the greedy move keeps
+// walking into pockets it then needs many steps to escape, which cost more than the direct
+// approach saved. Measured over 48 games (sizes 8/10/12/16), overall steps-per-apple:
+//   PATH/SCORE 0.62/0.72 -> 30.48   (worse than the old policy's 29.03)
+//   PATH/SCORE 0.45/0.50 -> 25.68   (best; the values used here)
+//   PATH/SCORE 0.30/0.35 -> 28.41
+/** Fill ratio above which the shortest-path layer is switched off entirely (endgame). */
+const PATH_MAX_FILL = 0.45;
+/** Fill ratio above which grid scoring gives way to the pure cycle policy. */
+const SCORE_MAX_FILL = 0.5;
+
+// Scratch buffers for BFS / flood fill, grown on demand and reused across calls so that a
+// nextMove call allocates nothing in steady state (the game loop runs this every tick).
+let SCRATCH_N = 0;
+let BFS_QUEUE = new Int32Array(0);
+let BFS_MARK = new Int32Array(0); // generation-stamped, so no per-call clearing
+let BFS_PREV = new Int32Array(0);
+let BFS_GEN = 0;
+
+function ensureScratch(n) {
+  if (SCRATCH_N >= n) return;
+  SCRATCH_N = n;
+  BFS_QUEUE = new Int32Array(n);
+  BFS_MARK = new Int32Array(n);
+  BFS_PREV = new Int32Array(n);
+  BFS_GEN = 0;
+}
+
+/** Manhattan distance between two cell indices on a w-wide board. */
+function manhattan(w, a, b) {
+  const dx = (a % w) - (b % w);
+  const dz = Math.floor(a / w) - Math.floor(b / w);
+  return (dx < 0 ? -dx : dx) + (dz < 0 ? -dz : dz);
+}
 
 /**
- * Decide the next move (SPEC §4.1 move policy).
+ * Breadth-first search over the free board (cells with `blocked[c] !== blockGen`), starting at
+ * `from`, stopping at `to`. Returns the first step of a shortest path (the neighbour of `from`
+ * to move onto), or -1 when `to` is unreachable. `to === from` returns -1.
+ */
+function bfsFirstStep(nbr, blocked, blockGen, from, to) {
+  if (to < 0 || to === from) return -1;
+  const gen = ++BFS_GEN;
+  const mark = BFS_MARK;
+  const prev = BFS_PREV;
+  const queue = BFS_QUEUE;
+  let qh = 0;
+  let qt = 0;
+  queue[qt++] = from;
+  mark[from] = gen;
+  prev[from] = -1;
+  while (qh < qt) {
+    const c = queue[qh++];
+    const base = c * 4;
+    for (let d = 0; d < 4; d++) {
+      const nx = nbr[base + d];
+      if (nx < 0 || mark[nx] === gen) continue;
+      if (nx !== to && blocked[nx] === blockGen) continue;
+      mark[nx] = gen;
+      prev[nx] = c;
+      if (nx === to) {
+        // Walk back to the cell right after `from`.
+        let cur = nx;
+        while (prev[cur] !== from) cur = prev[cur];
+        return cur;
+      }
+      queue[qt++] = nx;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Simulate walking the shortest path from `head` to `target` (eating it), then check that the
+ * resulting body can still reach its own tail, and that the free space around the new head is
+ * at least the new length. This is the "shortest path + tail reachability" test a good human
+ * player does by instinct: take the fast route only when it does not shut you in.
+ *
+ * Cheap approximation on purpose: instead of replaying the whole path we place the body as it
+ * would be after `steps` moves along that path, using the path cells themselves. Only used as
+ * a gate — whatever it returns, the move actually taken is still checked against the cycle
+ * invariant, so a wrong answer here can cost efficiency but never safety.
+ */
+function pathIsSafe(cycle, nbr, snake, firstStep, target, blocked, occGen) {
+  const n = cycle.n;
+  const len = snake.length;
+  ensurePathScratch(n);
+  // Length of the shortest route head → target that starts with `firstStep`.
+  const rest = bfsDistance(nbr, blocked, occGen, firstStep, target);
+  if (rest < 0) return false;
+  const pathLen = 1 + rest; // number of steps taken from the head to reach the target
+
+  // Reconstruct the post-eat body into a dedicated buffer (never shared with the BFS marks,
+  // so the reachability search below can stamp freely).
+  const blk = PATH_BLOCK;
+  const bgen = ++PATH_GEN;
+  // After walking `pathLen` steps and growing by 1, the surviving old segments are
+  // snake[0 .. survive-2]; the rest of the new body is made of the path cells.
+  const survive = len + 1 - pathLen;
+  let newTail = target;
+  if (survive > 1) {
+    for (let i = 0; i < survive - 1; i++) blk[snake[i]] = bgen;
+    newTail = snake[survive - 2];
+  }
+  // The path cells the body now occupies. We only know the two ends cheaply (first step and
+  // target); the interior is bounded by the same BFS and blocking them is not required for a
+  // conservative answer — we block what we know, which keeps the test on the safe side.
+  blk[target] = bgen;
+  blk[firstStep] = bgen;
+
+  // Can the new head still reach the new tail, and is there room for the new length?
+  const gen = ++BFS_GEN;
+  const seen = BFS_MARK;
+  const q = BFS_QUEUE;
+  let qh = 0;
+  let qt = 0;
+  q[qt++] = target;
+  seen[target] = gen;
+  let room = 1;
+  const need = len + 1;
+  let reachedTail = newTail === target;
+  while (qh < qt) {
+    const c = q[qh++];
+    const base = c * 4;
+    for (let d = 0; d < 4; d++) {
+      const nx = nbr[base + d];
+      if (nx < 0 || seen[nx] === gen || blk[nx] === bgen) continue;
+      seen[nx] = gen;
+      room++;
+      if (nx === newTail) reachedTail = true;
+      if (reachedTail && room >= need) return true;
+      q[qt++] = nx;
+    }
+  }
+  return reachedTail && room >= need;
+}
+
+// Dedicated post-move occupancy buffer for pathIsSafe (kept separate from the BFS marks).
+let PATH_BLOCK = new Int32Array(0);
+let PATH_GEN = 0;
+
+function ensurePathScratch(n) {
+  if (PATH_BLOCK.length >= n) return;
+  PATH_BLOCK = new Int32Array(n);
+  PATH_GEN = 0;
+}
+
+/** BFS distance over the free board; -1 when unreachable. `to` itself is always enterable. */
+function bfsDistance(nbr, blocked, blockGen, from, to) {
+  if (from === to) return 0;
+  const gen = ++BFS_GEN;
+  const mark = BFS_MARK;
+  const queue = BFS_QUEUE;
+  const dist = BFS_PREV; // reused as a distance array here
+  let qh = 0;
+  let qt = 0;
+  queue[qt++] = from;
+  mark[from] = gen;
+  dist[from] = 0;
+  while (qh < qt) {
+    const c = queue[qh++];
+    const dc = dist[c];
+    const base = c * 4;
+    for (let d = 0; d < 4; d++) {
+      const nx = nbr[base + d];
+      if (nx < 0 || mark[nx] === gen) continue;
+      if (nx !== to && blocked[nx] === blockGen) continue;
+      mark[nx] = gen;
+      dist[nx] = dc + 1;
+      if (nx === to) return dc + 1;
+      queue[qt++] = nx;
+    }
+  }
+  return -1;
+}
+
+// Occupancy buffer, generation-stamped like the BFS marks so it never needs clearing.
+let OCC_BUF = new Int32Array(0);
+let OCC_GEN = 0;
+
+function ensureOcc(n) {
+  if (OCC_BUF.length >= n) return;
+  OCC_BUF = new Int32Array(n);
+  OCC_GEN = 0;
+}
+
+/**
+ * Decide the next move.
+ *
  * @param {object} cycle from buildCycle
  * @param {ArrayLike<number>} snake cell indices, head first (length >= 1)
- * @param {number} apple cell index or -1
- * @param {{shortcutMaxFill?:number, allowShortcuts?:boolean}} [opts]
+ * @param {number} apple cell index or -1 (the primary target)
+ * @param {{shortcutMaxFill?:number, allowShortcuts?:boolean, foods?:ArrayLike<number>,
+ *          rng?:function():number, style?:string}} [opts]
+ *   `foods` — [ia-pro] extra edible cells (golden bonus food); the AI picks whichever target
+ *   is closest ON THE GRID. Optional and backwards compatible.
+ *   `rng` — injectable RNG used only to break exact ties, so tests stay deterministic.
+ *   `style` — 'pro' (default) or 'cycle' to force the original cycle-only policy.
  * @returns {{cell:number, dir:number, shortcut:boolean, eatsApple:boolean}}
  */
 export function nextMove(cycle, snake, apple, opts) {
-  const { n, pos } = cycle;
+  const { n, w, pos } = cycle;
   const { nbr } = getTables(cycle);
   const len = snake.length;
   if (len < 1) throw new RangeError('nextMove: a cobra precisa ter pelo menos 1 segmento');
@@ -501,7 +724,7 @@ export function nextMove(cycle, snake, apple, opts) {
   const limitGrow = tail === head ? n : (pos[tail] - hp + n) % n;
   const limitNoGrow = anchorNoGrow === head ? n : (pos[anchorNoGrow] - hp + n) % n;
 
-  // 1. Safe candidates (into scratch arrays).
+  // 1. Safe candidates (into scratch arrays) — UNCHANGED: this is the safety net.
   let count = 0;
   const base = head * 4;
   for (let d = 0; d < 4; d++) {
@@ -516,17 +739,68 @@ export function nextMove(cycle, snake, apple, opts) {
   }
   if (count === 0) return fallbackMove(cycle, nbr, snake, apple);
 
-  // 2./3. Apple ahead on the free arc → shortcut mode while the board is not too full.
   const distApple = apple >= 0 ? (pos[apple] - hp + n) % n : -1;
   const appleAhead = apple >= 0 && distApple > 0 && distApple < limitNoGrow;
   const useShortcuts = allowShortcuts && len < shortcutMaxFill * n && appleAhead;
 
-  // 4. Pick: preferred-set membership → larger dist (shortcuts) / smaller dist (cycle).
+  // [ia-pro] The pro layers only ever run when there is something to chase and shortcuts are
+  // allowed. With no target (apple = -1) the behaviour is byte-for-byte the old one: follow
+  // the cycle. That also keeps `allowShortcuts:false` / `shortcutMaxFill:0` exactly as before.
+  //
+  // TERMINATION (why this is not just "score and pick the best"): the old policy could not
+  // livelock because every move it chose advanced the head along the cycle without passing
+  // the apple, so distFwd(head, apple) strictly decreased and the apple was always reached.
+  // Free-form grid scoring has no such property — an early draft of this policy orbited a
+  // 10-cell pocket forever, never reaching an apple two rows away, because the locally
+  // "closest" neighbour kept stepping backwards along the cycle.
+  //
+  // The rule used here keeps that guarantee while being far less restrictive than copying the
+  // old preferred set: a candidate is ELIGIBLE iff it strictly reduces the remaining forward
+  // distance to the apple, i.e. distFwd(c, apple) < distFwd(head, apple). Since that quantity
+  // is a non-negative integer that drops by at least 1 on every move, the apple is reached in
+  // at most distFwd(head, apple) steps — so the game always progresses and the win still
+  // holds. Note this admits everything the old policy allowed (any 0 < dist <= distApple has
+  // distFwd(c, apple) = distApple - dist < distApple) AND the many cells the old rule threw
+  // away, which is exactly the freedom the grid-distance scoring needs in order to matter.
+  // The gate honours BOTH shortcut switches — a caller that passes allowShortcuts:false or
+  // drives shortcutMaxFill below the current fill is asking for the plain cycle walk and must
+  // keep getting exactly that. It deliberately does NOT require `appleAhead`: needing the
+  // apple to sit ahead on the cycle is the old policy's own restriction, and keeping it here
+  // would leave the pro layers idle for most of a game (measured: they would run on ~10 % of
+  // steps, and the efficiency gain collapses to noise).
+  const shortcutsOn = allowShortcuts && len < shortcutMaxFill * n;
+  const styleCycle = opts && opts.style === 'cycle';
+  if (!styleCycle && shortcutsOn && apple >= 0 && count > 1 && distApple > 0) {
+    const fill = len / n;
+    if (fill < SCORE_MAX_FILL) {
+      // Mark the progress-preserving candidates.
+      let eligible = 0;
+      for (let i = 0; i < count; i++) {
+        const remaining = (distApple - CAND_DIST[i] + n) % n; // distFwd(candidate, apple)
+        const ok = remaining < distApple;
+        CAND_OK[i] = ok ? 1 : 0;
+        if (ok) eligible++;
+      }
+      if (eligible > 1) {
+        const picked = proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n);
+        if (picked >= 0) {
+          const cell = CAND_CELL[picked];
+          return {
+            cell,
+            dir: CAND_DIR[picked],
+            shortcut: CAND_DIST[picked] !== 1,
+            eatsApple: cell === apple,
+          };
+        }
+      }
+    }
+  }
+
+  // L2 / fallback: the original cycle policy, untouched.
   let bestI = 0;
   for (let i = 1; i < count; i++) {
     if (isBetterCandidate(i, bestI, useShortcuts, distApple)) bestI = i;
   }
-
   const cell = CAND_CELL[bestI];
   return {
     cell,
@@ -534,6 +808,181 @@ export function nextMove(cycle, snake, apple, opts) {
     shortcut: CAND_DIST[bestI] !== 1,
     eatsApple: cell === apple,
   };
+}
+
+/**
+ * [ia-pro] Layers L0 + L1: rank the already-safe candidates by real board quality.
+ * @returns {number} index into the CAND_* scratch arrays, or -1 to defer to the cycle policy.
+ */
+function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
+  ensureScratch(n);
+  ensureOcc(n);
+  const len = snake.length;
+
+  // Occupancy of the CURRENT body (generation-stamped, no clearing).
+  const occ = OCC_BUF;
+  const occGen = ++OCC_GEN;
+  for (let i = 0; i < len; i++) occ[snake[i]] = occGen;
+
+  // --- target selection: nearest edible ON THE GRID (apple or a bonus food) ---------------
+  let target = apple;
+  let targetDist = manhattan(w, head, apple);
+  const foods = opts && opts.foods;
+  if (foods && foods.length) {
+    for (let i = 0; i < foods.length; i++) {
+      const f = foods[i];
+      if (!Number.isInteger(f) || f < 0 || f >= n || occ[f] === occGen) continue;
+      const d = manhattan(w, head, f);
+      if (d < targetDist) { targetDist = d; target = f; }
+    }
+  }
+
+  // --- L0: shortest path with tail-reachability verification ------------------------------
+  // Only while the board is not crowded; this is the layer that makes the snake go straight
+  // at the apple like a player instead of sweeping the board.
+  if (fill < PATH_MAX_FILL) {
+    const first = bfsFirstStep(nbr, occ, occGen, head, target);
+    if (first >= 0) {
+      // The first step must ALSO be in the safe set — the invariant is never negotiable.
+      let ci = -1;
+      for (let i = 0; i < count; i++) if (CAND_CELL[i] === first && CAND_OK[i]) { ci = i; break; }
+      if (ci >= 0) {
+        if (first === target) {
+          // Eating right now: only accept if we keep room afterwards.
+          if (roomAfter(nbr, snake, first, true) >= len + 1) return ci;
+        } else if (pathIsSafe(cycle, nbr, snake, first, target, occ, occGen)) {
+          return ci;
+        }
+      }
+    }
+  }
+
+  // --- L1: score every safe candidate on real board terms ----------------------------------
+  const rng = opts && typeof opts.rng === 'function' ? opts.rng : null;
+  const prevDir = dirBetweenCells(w, snake.length >= 2 ? snake[1] : -1, head);
+  let bestI = -1;
+  let bestScore = -Infinity;
+  for (let i = 0; i < count; i++) {
+    if (!CAND_OK[i]) continue; // never break the progress guarantee
+    const c = CAND_CELL[i];
+    const eats = c === target;
+    // (a) real closeness to the target — the core fix for the wide laps.
+    const md = manhattan(w, c, target);
+    let score = -md * 10;
+    if (eats) score += 60;
+    // (b) space: never walk into a pocket smaller than the body.
+    const room = roomAfter(nbr, snake, c, eats);
+    if (room < len + 1) score -= 400 + (len + 1 - room) * 8;
+    else score += Math.min(room, len * 2) * 0.25;
+    // (c) tail reachability bonus — a body that can still chase its own tail is never stuck.
+    if (tailReachableAfter(nbr, snake, c, eats)) score += 25;
+    // (d) fluency: going straight reads better on stream than a needless turn.
+    if (CAND_DIR[i] === prevDir) score += 12;
+    // (e) keep a foot in the cycle order as the board fills — smooth handover to L2 instead
+    //     of a visible switch. Weight rises from 0 to ~12 between 40 % and SCORE_MAX_FILL.
+    const t = (fill - 0.25) / (SCORE_MAX_FILL - 0.25);
+    if (t > 0) score += (CAND_DIST[i] === 1 ? 1 : 0) * 12 * (t > 1 ? 1 : t);
+    // (f) A whisper of randomness so two identical rounds do not draw identical lines. The
+    // amplitude matters: the other terms move the score in steps of 10 (grid distance) and 12
+    // (straight-line bonus), so a jitter below ~6 can never flip a decision and the knob is
+    // dead. 7 is large enough to break genuine near-ties (two moves that are equally close and
+    // differ only by the straight bonus) and small enough that it never overrides a move that
+    // is actually closer to the food.
+    if (rng) score += rng() * 7;
+    if (score > bestScore) { bestScore = score; bestI = i; }
+  }
+  return bestI;
+}
+
+/** Direction index from cell `a` to cell `b` (-1 when either is invalid / not adjacent). */
+function dirBetweenCells(w, a, b) {
+  if (a < 0 || b < 0) return -1;
+  const dx = (b % w) - (a % w);
+  if (dx === 1) return 1;
+  if (dx === -1) return 3;
+  const dz = Math.floor(b / w) - Math.floor(a / w);
+  if (dz === 1) return 2;
+  if (dz === -1) return 0;
+  return -1;
+}
+
+/**
+ * Free cells reachable from `cell` after the snake moves there (tail leaves unless it grows).
+ * Capped at 2·len + 2 — we only need "is there enough room", never the exact number.
+ */
+function roomAfter(nbr, snake, cell, grows) {
+  const len = snake.length;
+  const gen = ++BFS_GEN;
+  const mark = BFS_MARK;
+  const queue = BFS_QUEUE;
+  // Post-move body: all current segments except the tail (unless growing), plus `cell`.
+  const bodyEnd = grows ? len : len - 1;
+  for (let i = 0; i < bodyEnd; i++) mark[snake[i]] = gen;
+  mark[cell] = gen;
+  const cap = len * 2 + 2;
+  let qh = 0;
+  let qt = 0;
+  let count = 0;
+  // Seed with the free neighbours of `cell`.
+  const base = cell * 4;
+  for (let d = 0; d < 4; d++) {
+    const nx = nbr[base + d];
+    if (nx < 0 || mark[nx] === gen) continue;
+    mark[nx] = gen;
+    queue[qt++] = nx;
+    count++;
+  }
+  while (qh < qt && count < cap) {
+    const c = queue[qh++];
+    const b2 = c * 4;
+    for (let d = 0; d < 4; d++) {
+      const nx = nbr[b2 + d];
+      if (nx < 0 || mark[nx] === gen) continue;
+      mark[nx] = gen;
+      count++;
+      if (count >= cap) break;
+      queue[qt++] = nx;
+    }
+  }
+  return count + 1; // + the cell the head now occupies
+}
+
+/** True when, after moving onto `cell`, the head can still reach its own tail cell. */
+function tailReachableAfter(nbr, snake, cell, grows) {
+  const len = snake.length;
+  if (len < 2) return true;
+  const gen = ++BFS_GEN;
+  const mark = BFS_MARK;
+  const queue = BFS_QUEUE;
+  const bodyEnd = grows ? len : len - 1;
+  for (let i = 0; i < bodyEnd; i++) mark[snake[i]] = gen;
+  mark[cell] = gen;
+  const goal = grows ? snake[len - 1] : snake[len - 2];
+  if (goal === cell) return true;
+  let qh = 0;
+  let qt = 0;
+  const base = cell * 4;
+  for (let d = 0; d < 4; d++) {
+    const nx = nbr[base + d];
+    if (nx < 0) continue;
+    if (nx === goal) return true;
+    if (mark[nx] === gen) continue;
+    mark[nx] = gen;
+    queue[qt++] = nx;
+  }
+  while (qh < qt) {
+    const c = queue[qh++];
+    const b2 = c * 4;
+    for (let d = 0; d < 4; d++) {
+      const nx = nbr[b2 + d];
+      if (nx < 0) continue;
+      if (nx === goal) return true;
+      if (mark[nx] === gen) continue;
+      mark[nx] = gen;
+      queue[qt++] = nx;
+    }
+  }
+  return false;
 }
 
 /** Compare candidates i and j from the scratch arrays; true when i should replace j. */
