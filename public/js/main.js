@@ -209,12 +209,11 @@ class App {
     }
     // [guia] Tabela "presente = efeito". Como tudo nesta seção, uma falha aqui não pode impedir o
     // jogo de subir. Nasce com o catálogo de fallback e troca para o do servidor no hello.
-    try {
-      this.giftGuide = createGiftGuide(this.ensureGuideContainer(root));
-    } catch (err) {
-      console.error('[main] falha ao criar o guia de presentes', err);
-      this.giftGuide = null;
-    }
+    // [live real 2026-09-04] DESLIGADA a pedido do cliente: o bloco de cima cresceu tanto que
+    // passou a cobrir as primeiras fileiras do tabuleiro. O jogo é o espetáculo — ele ganha o
+    // espaço de volta. Todas as chamadas a this.giftGuide?. abaixo são opcionais, então o
+    // módulo continua no repositório e reativar é só voltar esta linha.
+    this.giftGuide = null;
     this.audio = createAudio(this.config.audio, { autoResume: true });
     this.net = createNet(this.config.wsUrl, { log: (m, e) => console.warn(m, e) });
     this.bindNet();

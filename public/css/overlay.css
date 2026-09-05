@@ -82,8 +82,10 @@
   /* [live real 2026-09-04] A tabela de presentes estava em 71–79 %, exatamente onde o chat do
      TikTok escreve — o cliente viu na live e pediu tudo importante para cima. Ela sobe para o
      bloco principal e o tabuleiro herda todo o espaço até 79 %. */
-  --zone-head: 36;        /* 11 → 36 % : BLOCO PRINCIPAL (placar + duelo + tabela + progresso) */
-  --zone-board: 79;       /* 36 → 79 % : the board */
+  /* [live real] A tabela de presentes foi removida (comia as fileiras de cima do tabuleiro);
+     o bloco principal encolheu de volta e o jogo recuperou o espaço. */
+  --zone-head: 30;        /* 11 → 30 % : BLOCO PRINCIPAL (placar + duelo + ranking + progresso) */
+  --zone-board: 79;       /* 30 → 79 % : the board */
   --zone-guide: 79;       /* mantido para compatibilidade das guias de debug */
   /* 79 → 100 % : TikTok comments / buttons / gift bar — dead zone */
 

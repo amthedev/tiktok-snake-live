@@ -37,8 +37,8 @@ export const STAGE_ASPECT = 9 / 16;
 // de ~79 %, então a tabela de presentes subiu para o bloco principal e o tabuleiro herdou o resto.
 export const ZONES = [
   { from: 0,  to: 11,  kind: 'dead',  label: 'ZONA MORTA · barra do TikTok' },
-  { from: 11, to: 36,  kind: 'head',  label: 'PRINCIPAL · placar, duelo, ranking e presentes' },
-  { from: 36, to: 79,  kind: 'board', label: 'TABULEIRO · área segura' },
+  { from: 11, to: 30,  kind: 'head',  label: 'PRINCIPAL · placar, duelo e ranking' },
+  { from: 30, to: 79,  kind: 'board', label: 'TABULEIRO · área segura' },
   { from: 79, to: 100, kind: 'dead',  label: 'ZONA MORTA · chat e presentes do TikTok' }
 ];
 
