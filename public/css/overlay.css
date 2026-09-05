@@ -12,10 +12,10 @@
  *
  * ZONA SEGURA DO TIKTOK LIVE — vertical map, as fractions of the STAGE (not the window):
  *   0–11 %   ZONA MORTA: covered by TikTok's own app bar / profile row. Decoration only.
- *  11–24 %   cabeçalho: VITÓRIAS × DERROTAS, sequência, status da rodada, progresso
- *  24–72 %   BOARD (the canvas) — the star. Only transient DOM (gift card, toasts, countdown,
+ *  11–36 %   BLOCO PRINCIPAL: VITÓRIAS × DERROTAS, duelo VILÕES × HERÓIS, carrossel de metas,
+ *            TABELA DE PRESENTES, status e progresso. Tudo que precisa ser lido mora aqui.
+ *  36–79 %   BOARD (the canvas) — the star. Only transient DOM (gift card, toasts, countdown,
  *            round end), and never over the centre of the board.
- *  72–79 %   monetization strip (#hud-money) — reserved for ui/goals.js + ui/alerts.js
  *  79–100 %  ZONA MORTA: covered by TikTok's comments, buttons and gift bar. Nothing essential.
  * Horizontally, textual content keeps a ~5 % margin on each side (--pad-x).
  *
@@ -70,11 +70,10 @@
    *  11 → 30 %   BLOCO PRINCIPAL: placar VITÓRIAS × DERROTAS, DUELO VILÕES × HERÓIS (que subiu de
    *              72 %) e o progresso. É a faixa mais visível da live: logo abaixo da barra do app,
    *              e o chat nunca chega lá.
-   *  30 → 71 %   TABULEIRO. Cede 3 % no topo e ganha 1 % embaixo — ver a nota do BAND_PORTRAIT em
-   *              render/camera.js: a projeção é limitada pela LARGURA, então 41 % de faixa ainda
-   *              enquadra o board inteiro no mesmo tamanho.
-   *  71 → 79 %   TABELA DE PRESENTES (#hud-guide). É a informação que CONVERTE (🌹 = 💣, 🎮 = 🍎) e
-   *              fica no último trecho ainda acima do pior do chat.
+   *  24,2 → 30,2 % TABELA DE PRESENTES (#hud-guide), dentro do bloco principal. É a informação que
+   *              CONVERTE (🌹 = 💣, 🎮 = 🍎), então ficou acima do tabuleiro e não abaixo dele.
+   *  36 → 79 %   TABULEIRO — ver a nota do BAND_PORTRAIT em render/camera.js: a projeção é
+   *              limitada pela LARGURA, então a faixa maior não muda o tamanho desenhado.
    *  79 → 100 %  ZONA MORTA. Nada. Só o trilho de chat local, que é descartável por natureza.
    *
    * O nome --zone-money virou --zone-guide: a faixa mudou de dono (era o carrossel de metas, agora
@@ -222,8 +221,8 @@ html, body {
  * .band-score  11–30 %  : BLOCO PRINCIPAL. Contém, empilhados: placar, duelo, carrossel, status e
  *                         progresso. As três primeiras são bandas próprias posicionadas dentro
  *                         desta faixa (ladrilhadas por --score-h / --duel-h / --money-h).
- * .band-board  30–71 %  : o tabuleiro. Só DOM transitório (cartão de presente, toasts, contagem).
- * .band-guide  71–79 %  : TABELA DE PRESENTES (#hud-guide), do agente de conteúdo.
+ * .band-guide  24,2–30,2 % : TABELA DE PRESENTES (#hud-guide), quarta banda do bloco principal.
+ * .band-board  36–79 %  : o tabuleiro. Só DOM transitório (cartão de presente, toasts, contagem).
  * .band-chat   79–100 % : trilho de chat, na zona morta DE PROPÓSITO — é o único conteúdo
  *                         descartável do overlay (ver a nota em .band-chat).
  */
@@ -293,9 +292,9 @@ html, body {
 }
 /* [layout] Reserved, styled, empty. É AQUI que o agente de conteúdo desenha a TABELA DE PRESENTES:
    o container é #hud-guide e o seletor de estilo é .band-guide > (o que ele criar).
-   [live-real] 71–79 % é o último trecho da tela ainda acima do pior do chat, e é o lugar certo
-   para a tabela: ela é a informação que CONVERTE (🌹 = 💣, 🎮 = 🍎), então precisa de largura
-   inteira e de estar perto de onde o dedo do espectador já está (a barra de presentes). */
+   [live-real] A tabela é a informação que CONVERTE (🌹 = 💣, 🎮 = 🍎), então ela NÃO pode ficar
+   embaixo: fica como quarta banda do bloco principal (24,2–30,2 %), com largura inteira e bem
+   acima da faixa onde o chat do TikTok escreve. */
 .band-guide {
   top: calc((var(--zone-dead-top) + var(--score-h) + var(--duel-h) + var(--money-h)) * var(--u));
   height: calc(var(--guide-h) * var(--u));

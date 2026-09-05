@@ -164,6 +164,18 @@ textarea.invalid { border-color: var(--rose); }
 .btn-primary:hover { background: linear-gradient(135deg, #22d3ee, #3b82f6); }
 .btn-danger { color: #fecaca; background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.35); }
 .btn-danger:hover { background: rgba(239, 68, 68, 0.28); }
+
+/* [live nova] Bloco de destaque: é a ação que o streamer procura ao abrir uma transmissão. */
+.new-live {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+.new-live .btn { font-weight: 700; }
 .btn-ghost { background: transparent; }
 .btn-sm { padding: 6px 10px; font-size: 13px; }
 .btn.busy { position: relative; opacity: 0.7; pointer-events: none; }

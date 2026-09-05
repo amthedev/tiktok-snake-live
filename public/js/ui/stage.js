@@ -29,10 +29,10 @@ export const STAGE_ASPECT = 9 / 16;
  *  in render/camera.js — keep the three in sync.
  *
  *  [live-real] 2026-09-05: a prioridade vertical foi INVERTIDA depois do print de uma live real.
- *  O chat do TikTok sobe muito mais do que se supunha e cobre tudo abaixo de ~70 %, então o que
- *  importa (placar, duelo, metas) mudou de 72–79 % para 11–30 %, logo abaixo da barra do app —
- *  a faixa mais visível da tela. A metade de baixo ficou com a tabela de presentes (71–79 %, o
- *  último trecho ainda legível) e com a zona morta. */
+ *  O chat do TikTok sobe muito mais do que se supunha e cobre tudo abaixo de ~79 %, então TUDO
+ *  que precisa ser lido (placar, duelo, carrossel de metas E a tabela de presentes) vive agora
+ *  em 11–36 %, logo abaixo da barra do app. Nada essencial fica abaixo do tabuleiro: a faixa
+ *  79–100 % carrega só o trilho de chat local, que é descartável. */
 // [live real] Mapa alinhado ao que o print da live mostrou: o chat do TikTok invade tudo abaixo
 // de ~79 %, então a tabela de presentes subiu para o bloco principal e o tabuleiro herdou o resto.
 export const ZONES = [

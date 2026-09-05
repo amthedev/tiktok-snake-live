@@ -493,6 +493,27 @@ function wire() {
   $('#btn-member').addEventListener('click', busy($('#btn-member'), () => post('/api/sim/member', { nickname: nickname() })));
   $('#btn-viewers').addEventListener('click', busy($('#btn-viewers'), () => post('/api/sim/viewers', { count: Math.max(0, Number($('#in-viewers').value) || 0) })));
 
+  // [live nova] Limpa tudo de uma vez. A confirmação é explícita sobre o que some, porque é
+  // destrutivo e não tem desfazer.
+  $('#btn-live-reset').addEventListener(
+    'click',
+    busy($('#btn-live-reset'), async () => {
+      if (!window.confirm(
+        'COMEÇAR LIVE NOVA\n\n' +
+        'Vai apagar de uma vez:\n' +
+        '• placar de vitórias e derrotas (e o histórico)\n' +
+        '• ranking de quem mais mandou presente\n' +
+        '• duelo Vilões × Heróis\n' +
+        '• metas acumuladas\n' +
+        '• a partida em andamento (recomeça na rodada 1)\n\n' +
+        'Não muda o usuário do TikTok, a chave nem as regras de presentes.\n\n' +
+        'Isso não pode ser desfeito. Continuar?'
+      )) return;
+      await post('/api/live/reset');
+      toast('Tudo limpo! A live começa do zero.', 'success');
+    }),
+  );
+
   // Stats / leaderboard
   $('#btn-stats-reset').addEventListener(
     'click',

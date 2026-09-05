@@ -283,6 +283,28 @@ export class StatsStore {
     return this.stats;
   }
 
+  /**
+   * COMEÇAR LIVE NOVA: apaga tudo de uma vez — placar (vitórias/derrotas/histórico), ranking da
+   * live, duelo da rodada, metas acumuladas e o estado da partida em andamento.
+   *
+   * Existe porque os dois botões separados (zerar placar / zerar ranking) deixavam sobrar coisa:
+   * as metas e a rodada em curso continuavam, e o nome de quem presenteou na live anterior
+   * reaparecia. Ao abrir uma live nova o streamer quer a tela como no primeiro dia.
+   *
+   * NÃO mexe nas configurações (usuário do TikTok, chave de assinatura, regras de presentes):
+   * essas são do setup, não da live.
+   *
+   * @returns {{stats: object, leaderboard: object, live: object|null}} o estado já zerado
+   */
+  resetAll() {
+    this.data.stats = emptyStats();
+    this.data.leaderboard = emptyLeaderboard(this.data.leaderboard?.roomId ?? null);
+    this.data.round = emptyRound(0);
+    this.data.live = emptyLive();
+    this._schedule();
+    return { stats: this.stats, leaderboard: this.leaderboard, live: this.data.live };
+  }
+
   /* ---------------------------------------------------------------------------------------------
    * Leaderboard (scope: live)
    * ------------------------------------------------------------------------------------------- */

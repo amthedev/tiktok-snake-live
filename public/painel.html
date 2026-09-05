@@ -47,6 +47,12 @@
         <button class="btn btn-danger" id="btn-disconnect" type="button">Desconectar</button>
       </form>
       <p id="tiktok-message" class="status-line muted">Desconectado.</p>
+      <!-- [live nova] Fica aqui, junto da conexão, porque é o momento em que o streamer usa:
+           abriu uma live nova, quer a tela limpa antes de conectar. -->
+      <div class="new-live">
+        <button class="btn btn-danger" id="btn-live-reset" type="button">🧹 Começar live nova (limpar tudo)</button>
+        <span class="hint">Apaga placar, ranking, duelo, metas e a partida atual. Não mexe no usuário, na chave nem nas regras de presentes.</span>
+      </div>
       <p class="hint">A chave gratuita de <a href="https://www.eulerstream.com" target="_blank" rel="noreferrer">eulerstream.com</a> aumenta muito o limite de conexões (recomendada em produção). Ela fica salva só neste servidor — nunca no GitHub. Digite <code>limpar</code> no campo para removê-la.</p>
     </section>
 

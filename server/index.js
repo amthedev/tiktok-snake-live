@@ -272,6 +272,23 @@ app.post('/api/leaderboard/reset', (_req, res) => {
   return ok(res, { leaderboard: lb });
 });
 
+/**
+ * COMEÇAR LIVE NOVA: zera placar, ranking, duelo, metas e a partida em andamento de uma vez.
+ * Os dois botões antigos limpavam só um pedaço; ao abrir uma live nova o streamer quer a tela
+ * como no primeiro dia, sem nomes nem números da transmissão anterior.
+ * Não mexe nas configurações (usuário, chave, regras de presentes): isso é setup, não live.
+ */
+app.post('/api/live/reset', (_req, res) => {
+  const { stats: s, leaderboard: lb } = stats.resetAll();
+  bridge.streaks.clear();
+  broadcast('stats', s);
+  broadcast('leaderboard', lb);
+  // Manda o overlay recomeçar do zero (rodada 1, tabuleiro limpo, metas zeradas).
+  broadcast('command', { action: 'new_round', payload: { reason: 'live_reset' } });
+  log.info('LIVE NOVA: placar, ranking, duelo, metas e partida zerados pelo painel');
+  return ok(res, { stats: s, leaderboard: lb });
+});
+
 /* ---- gift rules ------------------------------------------------------------------------------- */
 
 app.get('/api/gifts', (_req, res) => res.json(rules));
