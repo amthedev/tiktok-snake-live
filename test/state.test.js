@@ -447,7 +447,10 @@ describe('bombs', () => {
     // The AI beelines to the apple eating bombs on the way (bombShrink 1 so a well-grown
     // snake survives); the deep queue refills every cell the tail frees, so the only way
     // the apple respawns is priority over the queue.
-    const { state } = makeState({ gridSize: 6, bombShrink: 1, maxBombsOnBoard: 1000, bombFuseSec: 0 });
+    // shortcutMaxFill fixo em 0,5: este teste é sobre a PRIORIDADE do spawn (maçã antes da fila
+    // de bombas), não sobre o estilo de movimento. Com o valor novo (0,85) a cobra come rápido
+    // demais e o tabuleiro nunca chega a ficar sem espaço livre, que é a condição sob teste.
+    const { state } = makeState({ gridSize: 6, bombShrink: 1, maxBombsOnBoard: 1000, bombFuseSec: 0, shortcutMaxFill: 0.5 });
     state.reset();
     state.start();
     while (state.snapshot.length < 20) assert.ok(stepUntil(state, 'eat_apple'));

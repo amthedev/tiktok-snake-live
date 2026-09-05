@@ -31,7 +31,7 @@ const DEFAULTS = Object.freeze({
   foodFuseSec: 45,          // golden bonus food (hero gifts); 0 = never expires
   maxFoodOnBoard: 30,
   shieldMaxSec: 120,        // cap for stacked hero shields
-  shortcutMaxFill: 0.5,
+  shortcutMaxFill: 0.85,
   // [itens] Balanceamento da bomba. Estes dois mantêm o comportamento histórico do SPEC para
   // quem cria um GameState "pelado" (testes, ferramentas); o balanceamento REAL da live vem do
   // config (public/js/config.js): bombShrink 4 + bombShrinkPct 0.2 + startLength 10.

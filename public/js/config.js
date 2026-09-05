@@ -30,7 +30,13 @@ export const DEFAULTS = {
   maxBombsOnBoard: 60,
   roundRestartDelaySec: 8,
   countdownSec: 3,          // "3-2-1" before the snake moves
-  shortcutMaxFill: 0.5,     // AI: allow apple shortcuts while length < shortcutMaxFill * cells
+  // [desenho 2026-09-04] Era 0,5: acima da metade do tabuleiro a cobra abandonava os atalhos e
+  // passava a varrer o ciclo linha por linha, virando um BLOCO MACIÇO na tela — o oposto do
+  // labirinto que o cliente mostrou como referência. Com 0,85 ela continua "jogando" quase até o
+  // fim e o corpo desenha corredores entrelaçados, que é o visual que impressiona.
+  // Segurança verificada: 15/15 vitórias e zero quebras do invariante em 0,5 / 0,75 / 0,85 / 0,95
+  // (o atalho já passa pela regra de segurança; este número só diz até quando ele é permitido).
+  shortcutMaxFill: 0.85,    // AI: allow apple shortcuts while length < shortcutMaxFill * cells
   quality: 'high',          // 'low' | 'medium' | 'high'
   obs: false,               // hide dev panel & cursor, OBS-friendly
   audio: true,
