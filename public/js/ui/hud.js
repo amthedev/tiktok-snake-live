@@ -236,7 +236,12 @@ export function createHud(root, opts = {}) {
   // custo perceptível e servem de ponto de reenxerto se algum dia voltarem.
   const [, applesNum] = mkStat('🍎', 'apples', '0', 'Maçãs');
   const [, timerNum] = mkStat('⏱', 'timer', '0:00', 'Tempo da rodada');
-  statusRow.append(lenW, bombsW, shieldW);
+  // [live real 2026-09-04] 🐍 tamanho e 💣 bombas SAÍRAM da tela a pedido do cliente: a barra
+  // ocupava uma faixa inteira acima do tabuleiro para mostrar dois números que o próprio jogo
+  // já conta melhor — o tamanho se vê na cobra, as bombas se veem no tabuleiro.
+  // O 🛡️ escudo FICA, porque é o único que não dá para ver olhando o jogo e é o recibo visível
+  // de um presente de herói; ele já nasce escondido e só aparece enquanto dura.
+  statusRow.append(shieldW);
 
   // [compacto] A barra fica; o texto "Rodada 1 · 5 % do tabuleiro" era abstrato ("5 % de quê?").
   // Vira uma frase concreta e emocional: quantas maçãs ainda faltam para a VITÓRIA.
@@ -252,7 +257,11 @@ export function createHud(root, opts = {}) {
   progress.append(progressFill, progressText);
   // [live-real] O placar mudou de banda (subiu para #hud-scoreboard, no topo do bloco principal);
   // #hud-score fica com a linha de status e o progresso, que ocupam a parte de baixo do bloco.
-  bandScore.append(statusRow, progress);
+  // [live real] A BARRA DE PROGRESSO também saiu: sem o texto dentro dela (removido antes), virou
+  // um risco fino atravessando a frente do tabuleiro. O progresso já se lê na própria cobra
+  // crescendo — que é a leitura mais direta possível. Os nós continuam existindo (update() ainda
+  // os alimenta), só não são anexados à tela.
+  bandScore.append(statusRow);
 
   // Board band (transient only) -------------------------------------------------------------
   clear(bandBoard);

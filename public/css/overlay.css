@@ -84,7 +84,10 @@
      bloco principal e o tabuleiro herda todo o espaço até 79 %. */
   /* [live real] A tabela de presentes foi removida (comia as fileiras de cima do tabuleiro);
      o bloco principal encolheu de volta e o jogo recuperou o espaço. */
-  --zone-head: 30;        /* 11 → 30 % : BLOCO PRINCIPAL (placar + duelo + ranking + progresso) */
+  /* [live real] Com a barra 🐍/💣 fora, o bloco principal só precisa de placar + duelo + ranking
+     (5,4 + 4,4 + 3,4 = 13,2 %) mais a barra de progresso: 26 % chega e sobra, e o tabuleiro
+     herda os 4 % que a barra de status ocupava. */
+  --zone-head: 24;        /* 11 → 24 % : BLOCO PRINCIPAL (placar + duelo + ranking) */
   --zone-board: 79;       /* 30 → 79 % : the board */
   --zone-guide: 79;       /* mantido para compatibilidade das guias de debug */
   /* 79 → 100 % : TikTok comments / buttons / gift bar — dead zone */
@@ -450,15 +453,17 @@ html, body {
 .chip.empty { background: transparent; color: var(--muted); }
 
 .status-row {
+  /* [live real] Sem 🐍 e 💣, a barra existe só para o escudo transitório: sem fundo, sem borda e
+     sem altura própria — quando não há escudo, ela não desenha nada. */
   display: flex;
-  align-items: center;
   justify-content: center;
-  /* [celular] O gap encolhe para financiar o texto maior: com 5–6 stats na linha, cada 0.1rem de
-     gap custa mais que o próprio número. */
-  gap: 0.6rem;
-  padding: 0.3rem 0.6rem;
-  min-height: 2.9rem;
-  font-size: var(--fs-corpo);
+  align-items: center;
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0;
+  min-height: 0;
 }
 .stat-mini { display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; }
 /* The length stat is the snake's life: red pulse while one more bomb would kill it. */

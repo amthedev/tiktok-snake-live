@@ -23,7 +23,7 @@ export const ELEVATION_DEG = 55;
 // altura da faixa — com 48 % de faixa sobravam ~41 px de folga vertical, e com 41 % ainda sobra
 // folga. O board é desenhado exatamente do mesmo tamanho; só o centro dele desceu ~1,5 % da
 // altura do palco, o que também é bom: afasta o tabuleiro da zona de chat.
-export const BAND_PORTRAIT = [0.30, 0.79];  // [live real] alinhado às zonas do CSS: a tabela de presentes subiu e o tabuleiro herdou o espaço até 79 %
+export const BAND_PORTRAIT = [0.24, 0.79];  // [live real] alinhado às zonas do CSS: a tabela de presentes subiu e o tabuleiro herdou o espaço até 79 %
 export const BAND_LANDSCAPE = BAND_PORTRAIT;
 export const WIDTH_FRACTION = 0.98;
 // [enquadramento] 2026-09-04: com 0.92 a câmera resolvia a distância pela LARGURA e o tabuleiro
