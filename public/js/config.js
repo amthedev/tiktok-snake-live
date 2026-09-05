@@ -7,16 +7,16 @@
 
 export const DEFAULTS = {
   gridSize: 16,             // even, 8..24
-  // [ritmo 2026-09-04] Curva medida, não chutada. A anterior (6 / 0,03 / 13) dava rodadas de
-  // 16,7 min e uma aceleração imperceptível: a cobra crescia 50× e ganhava só 70 % de velocidade.
-  // Numa live, quem chega no meio nunca via uma vitória e nada parecia ficar mais difícil.
-  // Com 11 / 0,16 / 28 a rodada cai para ~6,4 min e a velocidade MAIS QUE DOBRA ao longo dela
-  // (11 → 28 casas/s), então a tensão sobe de forma visível. O teto de 28 foi limitado pela
-  // legibilidade: acima disso a cobra vira um borrão e o clique de teclado a cada curva
-  // (limite de 55 ms em audio.js) começa a se aproximar de zumbido.
-  baseSpeed: 11,            // cells per second at length 3
-  speedPerSegment: 0.16,    // added per extra segment
-  maxSpeed: 28,
+  // [ritmo 2026-09-04 v2] O cliente mostrou uma live de referência e pediu: "ela começa mais
+  // devagar, depois vai aumentando a velocidade". A curva anterior (11 / 0,16 / 28) já nascia
+  // acelerada, então não havia progressão perceptível — a cobra parecia sempre no mesmo ritmo.
+  // Agora começa em 5 casas/s (dá para acompanhar cada movimento, o começo respira) e termina em
+  // 32 (frenético, com a cobra gigante desenhando o tabuleiro). São mais de 6× de aceleração ao
+  // longo da rodada, contra 2,5× antes: a tensão sobe de forma óbvia para quem assiste.
+  // Rodada média medida: 8,7 min.
+  baseSpeed: 5,             // cells per second at length 3
+  speedPerSegment: 0.14,    // added per extra segment
+  maxSpeed: 32,
   // [itens] Balanceamento da bomba (cliente: "a bomba é muito fraquinha").
   // Dano = bombShrink + floor(tamanho * bombShrinkPct), e a cobra nasce com startLength.
   // Só dobrar o valor fixo acabava com a rodada em ~3 s; medido em docs/DECISOES-LIVE.md.
