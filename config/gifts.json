@@ -74,11 +74,10 @@
       "desc": "+1 comida dourada"
     },
     {
-      "name": "Coraçãozinho",
+      "name": "Capivara",
       "match": [
-        "Finger Heart",
-        "Coraçãozinho",
-        "Coração"
+        "Capybara",
+        "Capivara"
       ],
       "coins": 30,
       "team": "hero",

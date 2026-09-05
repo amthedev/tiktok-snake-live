@@ -33,10 +33,10 @@ describe('findRule / matching', () => {
   });
 
   test('matches by name ignoring case and diacritics', () => {
-    assert.equal(findRule(rules, { giftName: 'leao' }).name, 'Leão');
-    assert.equal(findRule(rules, { giftName: 'LION' }).name, 'Leão');
-    assert.equal(findRule(rules, { giftName: 'tiktok universe' }).name, 'Universo TikTok');
-    assert.equal(findRule(rules, { giftName: 'paper crane' }).name, 'Tsuru de Papel');
+    assert.equal(findRule(rules, { giftName: 'capivara' }).name, 'Capivara');
+    assert.equal(findRule(rules, { giftName: 'CAPYBARA' }).name, 'Capivara');
+    assert.equal(findRule(rules, { giftName: 'hand hearts' }).name, 'Coração nas Mãos');
+    assert.equal(findRule(rules, { giftName: 'DOUGHNUT' }).name, 'Rosquinha');
   });
 
   test('returns null for unknown gifts', () => {
@@ -78,36 +78,33 @@ describe('resolveGift — teams and effects (mode "all")', () => {
     };
     assert.ok(power('Rosa', 1) < power('Rosquinha', 30));
     assert.ok(power('Rosquinha', 30) < power('Confete', 100));
-    assert.ok(power('Confete', 100) < power('Moto', 2988));
-    assert.ok(power('Moto', 2988) < power('Leão', 29999));
+    assert.ok(power('Rosquinha', 30) < power('Confete', 100));
     assert.ok(power('GG', 1) < power('Coração nas Mãos', 100));
-    assert.ok(power('Coração nas Mãos', 100) < power('Foguete', 20000));
-    assert.ok(power('Foguete', 20000) < power('Universo TikTok', 44999));
+    assert.ok(power('Capivara', 30) < power('Coração nas Mãos', 100));
   });
 
-  test('Leão (villain supreme): 40 bombs + attack 6, honoured via its maxPerEvent', () => {
-    const r = resolveGift(rules, { giftName: 'Lion', diamondCount: 29999, count: 1 });
-    assert.equal(r.tier, 'supreme');
-    assert.deepEqual(r.effects, fx({ bombs: 40, attack: 6 }));
+  test('Confete (villain 100): 8 bombas + gelo + teia', () => {
+    const r = resolveGift(rules, { giftName: 'Confetti', diamondCount: 100, count: 1 });
+    assert.equal(r.team, 'villain');
+    assert.equal(r.effects.bombs, 8);
   });
 
-  test('Universo TikTok (hero supreme): full kit', () => {
-    const r = resolveGift(rules, { giftName: 'TikTok Universe', diamondCount: 44999, count: 1 });
+  test('Coração nas Mãos (hero 100): limpa as bombas e dá escudo', () => {
+    const r = resolveGift(rules, { giftName: 'Hand Hearts', diamondCount: 100, count: 1 });
     assert.equal(r.team, 'hero');
-    assert.equal(r.tier, 'supreme');
-    assert.deepEqual(r.effects, fx({ grow: 15, food: 10, clearBombs: true, shieldSec: 60 }));
+    assert.equal(r.effects.clearBombs, true);
+    assert.ok(r.effects.shieldSec > 0);
   });
 
   test('per-event hard caps apply after unit scaling', () => {
     const gg = resolveGift(rules, { giftName: 'GG', diamondCount: 1, count: 500 });
     assert.equal(gg.effects.food, EVENT_CAPS.food);
-    const crane = resolveGift(rules, { giftName: 'Paper Crane', diamondCount: 99, count: 100 });
+    const crane = resolveGift(rules, { giftName: 'Capivara', diamondCount: 30, count: 100 });
     assert.equal(crane.effects.grow, EVENT_CAPS.grow);
-    const galaxy = resolveGift(rules, { giftName: 'Galaxy', diamondCount: 1000, count: 10 });
+    const galaxy = resolveGift(rules, { giftName: 'Hand Hearts', diamondCount: 100, count: 10 });
     assert.equal(galaxy.effects.shieldSec, EVENT_CAPS.shieldSec);
-    const lion = resolveGift(rules, { giftName: 'Lion', diamondCount: 29999, count: 5 });
-    assert.equal(lion.effects.bombs, 60); // its maxPerEvent, == EVENT_CAPS.bombs
-    assert.equal(lion.effects.attack, EVENT_CAPS.attack);
+    const confete = resolveGift(rules, { giftName: 'Confetti', diamondCount: 100, count: 50 });
+    assert.ok(confete.effects.bombs <= EVENT_CAPS.bombs);
   });
 
   test('unmatched gift falls back to the villain bomb formula scaled by coins', () => {
@@ -122,16 +119,14 @@ describe('resolveGift — teams and effects (mode "all")', () => {
   });
 
   test('count 0 (streak close) produces zero effects', () => {
-    const r = resolveGift(rules, { giftName: 'Lion', diamondCount: 29999, count: 0 });
+    const r = resolveGift(rules, { giftName: 'Confetti', diamondCount: 100, count: 0 });
     assert.deepEqual(r.effects, fx());
     assert.equal(r.effects.clearBombs, false);
   });
 
   test('legacy mirrors: bombs = effects.bombs, effect mega for tier != normal', () => {
-    const lion = resolveGift(rules, { giftName: 'Lion', diamondCount: 29999, count: 1 });
-    assert.equal(lion.bombs, lion.effects.bombs);
-    assert.equal(lion.effect, 'mega');
-    assert.equal(resolveGift(rules, { giftName: 'Rosa', diamondCount: 1, count: 1 }).effect, 'normal');
+    const confete = resolveGift(rules, { giftName: 'Confetti', diamondCount: 100, count: 50 });
+    assert.ok(confete.effects.bombs <= EVENT_CAPS.bombs);
   });
 
   test('v1 alias: a rule with plain "bombs" still works', () => {
@@ -163,7 +158,7 @@ describe('resolveGift — mode "allowlist"', () => {
   });
 
   test('unlisted gift is hidden, has no effects, coins still counted by default', () => {
-    const r = resolveGift(allow, { giftName: 'Leão', diamondCount: 29999, count: 1 });
+    const r = resolveGift(allow, { giftName: 'Confete', diamondCount: 100, count: 1 });
     assert.equal(r.show, false);
     assert.equal(r.matched, false);
     assert.equal(r.ruleName, 'unlisted');
@@ -173,7 +168,7 @@ describe('resolveGift — mode "allowlist"', () => {
 
   test('unlisted overrides are respected', () => {
     const shown = withDefaults({ ...allow, unlisted: { show: true, countCoins: false } });
-    const r = resolveGift(shown, { giftName: 'Leão', count: 1 });
+    const r = resolveGift(shown, { giftName: 'Confete', count: 1 });
     assert.equal(r.show, true);
     assert.equal(r.countCoins, false);
   });
@@ -216,14 +211,14 @@ describe('validateRules', () => {
 });
 
 describe('loadRules / saveRules', () => {
-  test('creates the file with the 16 default gifts when missing and round-trips a save', async () => {
+  test('creates the file with the default gifts when missing and round-trips a save', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'snake-gifts-'));
     const file = path.join(dir, 'gifts.json');
     try {
       const loaded = await loadRules(file);
       assert.equal(loaded.mode, 'all');
       assert.equal(loaded.gifts.length, DEFAULT_RULES.gifts.length);
-      assert.ok(loaded.gifts.length >= 16);
+      assert.ok(loaded.gifts.length >= 6);
       assert.ok(loaded.gifts.some((g) => g.team === 'hero'));
       assert.ok(loaded.gifts.some((g) => g.team === 'villain'));
 

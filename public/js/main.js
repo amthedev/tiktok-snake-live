@@ -34,7 +34,7 @@ const SIM_GIFTS = {
   donut:   { giftName: 'Rosquinha',        giftId: '',     diamondCount: 30,  count: 1, team: 'villain', tier: 'normal', effects: { bombs: 3, bolt: 1 } },
   confetti:{ giftName: 'Confete',          giftId: '',     diamondCount: 100, count: 1, team: 'villain', tier: 'mega',   effects: { bombs: 8, ice: 1, web: 1 } },
   gg:      { giftName: 'GG',               giftId: '',     diamondCount: 1,   count: 1, team: 'hero',    tier: 'normal', effects: { food: 1 } },
-  heart:   { giftName: 'Coraçãozinho',     giftId: '',     diamondCount: 30,  count: 1, team: 'hero',    tier: 'normal', effects: { grow: 3, diamond: 1 } },
+  heart:   { giftName: 'Capivara',         giftId: '',     diamondCount: 30,  count: 1, team: 'hero',    tier: 'normal', effects: { grow: 3, diamond: 1 } },
   hands:   { giftName: 'Coração nas Mãos', giftId: '',     diamondCount: 100, count: 1, team: 'hero',    tier: 'mega',   effects: { clearBombs: true, shieldSec: 30, food: 3, star: 1 } }
 };
 

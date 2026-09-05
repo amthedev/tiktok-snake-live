@@ -47,7 +47,7 @@ const FALLBACK_GIFTS = [
   { name: 'Rosquinha',        coins: 30,  team: 'villain', effects: { bombs: 3, bolt: 1 } },
   { name: 'Confete',          coins: 100, team: 'villain', effects: { bombs: 8, ice: 1, web: 1 } },
   { name: 'GG',               coins: 1,   team: 'hero',    effects: { food: 1 } },
-  { name: 'Coraçãozinho',     coins: 30,  team: 'hero',    effects: { grow: 3, diamond: 1 } },
+  { name: 'Capivara',         coins: 30,  team: 'hero',    effects: { grow: 3, diamond: 1 } },
   { name: 'Coração nas Mãos', coins: 100, team: 'hero',    effects: { clearBombs: true, shieldSec: 30, food: 3, star: 1 } }
 ];
 

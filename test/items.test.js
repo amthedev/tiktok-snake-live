@@ -407,40 +407,39 @@ describe('[itens] escala de recompensa por presente', () => {
   test('as regras (com os campos novos) continuam válidas', () => {
     const { ok, errors } = validateRules(rules);
     assert.equal(ok, true, errors.join(' '));
-    assert.equal(rules.gifts.length, 16, 'os 16 presentes reais continuam lá');
+    assert.equal(rules.gifts.length, 6, 'o catálogo enxuto: 3 vilões e 3 heróis pareados por preço');
   });
 
   test('presente mais caro faz MAIS coisa na tela (vilões e heróis)', () => {
-    const viloes = ['Rosa', 'Rosquinha', 'Boné', 'Arma de Dinheiro', 'Moto', 'Leão'];
+    const viloes = ['Rosa', 'Rosquinha', 'Confete'];
     for (let i = 1; i < viloes.length; i++) {
       assert.ok(peso(viloes[i]) > peso(viloes[i - 1]),
         `${viloes[i]} devia ser mais forte que ${viloes[i - 1]}`);
     }
-    const herois = ['GG', 'Coraçãozinho', 'Coração nas Mãos', 'Cisne', 'Foguete', 'Universo TikTok'];
+    const herois = ['GG', 'Capivara', 'Coração nas Mãos'];
     for (let i = 1; i < herois.length; i++) {
       assert.ok(peso(herois[i]) > peso(herois[i - 1]),
         `${herois[i]} devia ser mais generoso que ${herois[i - 1]}`);
     }
   });
 
-  test('presente de 1 moeda faz algo pequeno; o supremo dispara um combo', () => {
+  test('presente de 1 moeda faz algo pequeno; o de 100 dispara um combo', () => {
     const rosa = fxOf('Rosa');
     assert.equal(rosa.bombs, 1);
     for (const k of ALL_KINDS) assert.ok(!rosa[k], 'presente de 1 moeda não solta item especial');
 
-    const universo = fxOf('Universo TikTok');
-    assert.equal(universo.clearAll, true, 'o supremo limpa TUDO');
-    assert.ok(universo.diamond >= 5 && universo.star >= 1, 'o supremo tem chuva de diamantes e estrela');
-    const tipos = ALL_KINDS.filter((k) => universo[k] > 0).length;
-    assert.ok(tipos >= 4, `o supremo tem que combinar vários itens (tem ${tipos})`);
+    // O topo do catálogo enxuto é o de 100 moedas: precisa combinar mais de um efeito.
+    const maos = fxOf('Coração nas Mãos');
+    assert.ok(maos.clearAll || maos.clearBombs, 'o herói de 100 limpa as bombas');
+    assert.ok(maos.star >= 1, 'o herói de 100 solta estrela');
 
-    const leao = fxOf('Leão');
-    assert.ok(leao.skull >= 1, 'o supremo vilão solta caveira');
-    assert.ok(ALL_KINDS.filter((k) => leao[k] > 0).length >= 4, 'o supremo vilão combina vários itens');
+    const confete = fxOf('Confete');
+    assert.ok(confete.bombs >= 8, 'o vilão de 100 solta muitas bombas');
+    assert.ok(ALL_KINDS.filter((k) => confete[k] > 0).length >= 2, 'o vilão de 100 combina itens');
   });
 
   test('cada efeito de item respeita o teto do tabuleiro mesmo com muitas unidades', () => {
-    const r = resolveGift(rules, { giftName: 'Leão', diamondCount: 29999, count: 99 });
+    const r = resolveGift(rules, { giftName: 'Confete', diamondCount: 100, count: 99 });
     const fx = { ...r.effects, ...(r.combo || {}) };
     for (const k of ALL_KINDS) {
       if (fx[k] > 0) assert.ok(fx[k] <= ITEM_KINDS[k].max, `${k}: passou do limite do tabuleiro`);
@@ -467,20 +466,19 @@ describe('[itens] escala de recompensa por presente', () => {
   });
 
   test('o que o presente promete é o que o jogo faz (ponta a ponta)', () => {
-    // Aplica os efeitos do presente supremo herói num estado real, como o overlay faz.
+    // Aplica os efeitos do herói mais caro do catálogo num estado real, como o overlay faz.
     const state = playing();
-    const r = resolveGift(rules, { giftName: 'Universo TikTok', diamondCount: 44999, count: 1 });
+    const r = resolveGift(rules, { giftName: 'Coração nas Mãos', diamondCount: 100, count: 1 });
     const fx = { ...r.effects, ...(r.combo || {}) };
-    if (fx.clearAll) { state.clearBombs(); state.clearItems(); }
+    if (fx.clearAll || fx.clearBombs) { state.clearBombs(); state.clearItems(); }
     if (fx.grow > 0) state.growSnake(fx.grow);
     if (fx.food > 0) state.spawnFood(fx.food, {});
     if (fx.shieldSec > 0) state.applyShield(fx.shieldSec);
     for (const k of ALL_KINDS) if (fx[k] > 0) state.spawnItem(k, fx[k], {});
     const snap = state.snapshot;
-    assert.ok(snap.foods.length > 0, 'o supremo tinha que encher de comida');
-    assert.ok(snap.shieldLeft > 0, 'o supremo tinha que dar escudo');
-    assert.ok(snap.items.filter((i) => i.kind === 'diamond').length >= 5, 'chuva de diamantes');
+    assert.ok(snap.foods.length > 0, 'tinha que encher de comida');
+    assert.ok(snap.shieldLeft > 0, 'tinha que dar escudo');
     assert.ok(snap.items.some((i) => i.kind === 'star'), 'estrela na mesa');
-    assertNoCollision(state, 'supremo');
+    assertNoCollision(state, 'herói de 100');
   });
 });
