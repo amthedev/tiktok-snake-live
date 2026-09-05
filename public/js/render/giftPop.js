@@ -74,7 +74,7 @@ export class GiftPops {
     if (this.active.length >= MAX_ACTIVE) this._end(this.active.shift());
     if (team !== 'hero' && team !== 'villain') team = null;
     const mega = effect === 'mega';
-    const W = 512, H = 640;
+    const W = 1024, H = 1280;  // [nitidez] o card do presente é o que mais aparece em close
     const canvas = makeCanvas(W, H);
     const ctx = canvas.getContext('2d');
     const data = { img: null, nickname, count, effect, team };

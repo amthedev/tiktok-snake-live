@@ -9,6 +9,7 @@
   <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
   <link rel="stylesheet" href="/css/overlay.css">
   <link rel="stylesheet" href="/css/alerts.css"><!-- [monet] alertas + metas de monetização -->
+  <link rel="stylesheet" href="/css/giftguide.css"><!-- [guia] tabela visual "presente = efeito" -->
 </head>
 <body>
   <!-- [layout] #safe is the LOCKED 9:16 STAGE. Everything the viewer sees lives inside it, so the
@@ -19,20 +20,27 @@
     <div id="stage" aria-hidden="true"></div>
 
     <!-- HUD skeleton: hud.js fills each band (SPEC §8). Band ids are reused by createHud().
-         Vertical map (fractions of the STAGE, matching TikTok LIVE's safe area):
-           0–11 %   dead zone (TikTok app bar / profile) — decoration only
-           11–24 %  compact header: score + round + status/viewers
-           24–72 %  board (the star) — transient overlays only
-           72–79 %  monetization strip (#hud-money, filled by ui/goals.js + ui/alerts.js)
-           79–100 % dead zone (TikTok comments / gift bar) — nothing essential -->
+         [live-real] PRIORIDADE VERTICAL INVERTIDA (2026-09-05, print de uma live real): o chat do
+         TikTok sobe pela tela e cobre tudo abaixo de ~70 %, então o essencial mora ACIMA do
+         tabuleiro. Mapa vertical (frações do PALCO):
+           0–11 %   zona morta (barra do TikTok: foto, Seguir, contagem, X) — vazia
+           11–30 %  BLOCO PRINCIPAL: placar, DUELO VILÕES × HERÓIS, carrossel de metas, progresso
+           30–71 %  tabuleiro (a estrela) — só sobreposições transitórias
+           71–79 %  TABELA DE PRESENTES (#hud-guide) — o que ensina 🌹 = 💣 e 🎮 = 🍎
+           79–100 % zona morta (chat e barra de presentes do TikTok) — só o trilho de chat local -->
     <div id="hud" class="hud" aria-live="polite">
       <header id="hud-top" class="band band-top"></header>
+      <!-- Bloco principal, ladrilhado de cima para baixo: placar, duelo, carrossel; a barra de
+           status e o progresso ficam no flow de #hud-score, embaixo dos três. -->
+      <section id="hud-scoreboard" class="band band-scoreboard"></section>
+      <section id="hud-leader" class="band band-leader"></section>
+      <section id="hud-money" class="band band-money" aria-label="Metas e ranking"></section>
       <section id="hud-score" class="band band-score"></section>
       <section id="hud-board" class="band band-board"></section>
-      <section id="hud-leader" class="band band-leader"></section>
-      <!-- [layout] Monetization strip reserved for the content agent (goals.js / alerts.js). -->
-      <section id="hud-money" class="band band-money" aria-label="Metas e presentes"></section>
-      <!-- [layout] Chat moved out of the dead zone into a narrow, discreet left rail. -->
+      <!-- [layout] Faixa RESERVADA para a tabela de presentes do agente de conteúdo
+           (js/ui/giftguide.js). Container: #hud-guide; seletor de estilo: .band-guide. -->
+      <section id="hud-guide" class="band band-guide" aria-label="Tabela de presentes"></section>
+      <!-- [layout] Trilho de chat na zona morta: é o único conteúdo descartável do overlay. -->
       <section id="hud-chat" class="band band-chat"></section>
       <div id="hud-confetti" class="confetti hidden"></div>
     </div>

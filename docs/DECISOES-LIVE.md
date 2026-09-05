@@ -147,3 +147,20 @@ para quem já lia esse formato — e o espetáculo novo entra por cima.
 O alerta de quem começou a seguir é um card próprio, bem maior que o de entrada: foto grande
 com anel roxo pulsando, "💜 Fulano" e "COMEÇOU A SEGUIR!". Sem foto, cai nas iniciais
 coloridas. Fica 4,2 s na tela (mais que os outros alertas).
+
+## 9. Barra de progresso: só a barra (decisão do cliente, 04/09/2026, live real)
+
+Depois de ver o overlay rodando numa live de verdade, o cliente pediu para remover
+tanto a **porcentagem** ("· 27 % do tabuleiro") quanto a **frase** ("Faltam N para a
+VITÓRIA!"). Fica apenas a barra preenchendo — o progresso se lê pelo desenho, sem texto.
+
+**Por quê:** o espectador de live não lê número em movimento; ele sente o avanço pela
+barra. Cada linha de texto a menos é espaço que sobra para o que converte presente
+(duelo Vilões × Heróis e a tabela de presentes), que passam a ocupar a parte de cima.
+
+## 10. Duelo Vilões × Heróis vai para o TOPO (decisão do cliente, mesma live)
+
+O print da live mostrou o duelo e o ranking cobertos pelo chat do TikTok, pelas mensagens
+de boas-vindas e pela barra de digitar. Tudo que o público precisa ver sobe para a faixa
+logo abaixo da barra do app (~11 %), junto do placar. A parte de baixo passa a receber
+apenas conteúdo descartável.

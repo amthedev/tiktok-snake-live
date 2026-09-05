@@ -14,6 +14,7 @@ import { createAudio } from './audio.js';
 import { createHud } from './ui/hud.js';
 import { createAlerts } from './ui/alerts.js';   // [monet] alertas de entrada/seguidor/presentão
 import { createGoals } from './ui/goals.js';     // [monet] metas, ranking, dicas e duelo
+import { createGiftGuide } from './ui/giftguide.js'; // [guia] tabela "presente = efeito" (🌹=💣, 🎮=🍎)
 // [layout] 9:16 stage lock + ?safezone=1 guides.
 import { installStage, renderSafezone, safezoneRequested } from './ui/stage.js';
 
@@ -107,6 +108,7 @@ class App {
     this.disposeStage = null;    // [layout] set by boot(): tears down the stage resize listeners
     this.alerts = null;          // [monet] fila de alertas (entrada / seguidor / compartilhar / presentão)
     this.goals = null;           // [monet] metas, ranking, dicas e duelo
+    this.giftGuide = null;       // [guia] tabela visual "presente = efeito"
 
     // [persist] Estado autoritativo do servidor.
     //  * `role`: 'owner' → esta aba manda na partida (round_start/round_end/snapshot);
@@ -138,6 +140,25 @@ class App {
       node.className = 'band band-money';
       node.setAttribute('aria-label', 'Metas e presentes');
       (document.getElementById('hud-leader') || root || document.body).appendChild(node);
+    }
+    return node;
+  }
+
+  /**
+   * [guia] Container do guia de presentes. O agente do layout reserva #hud-guide na parte de CIMA
+   * do palco (o print da live real mostrou que o chat do TikTok cobre tudo abaixo de ~70 %). Se a
+   * faixa ainda não existir, o guia cria a sua e se pendura no #hud — assim os dois trabalhos
+   * avançam em paralelo sem um travar o outro, e quando a faixa oficial aparecer o guia passa a
+   * usá-la sozinho, sem mudar uma linha aqui.
+   */
+  ensureGuideContainer(root) {
+    let node = document.getElementById('hud-guide');
+    if (!node) {
+      node = document.createElement('section');
+      node.id = 'hud-guide';
+      node.className = 'band band-guide';
+      node.setAttribute('aria-label', 'O que cada presente faz');
+      (root || document.getElementById('hud') || document.body).appendChild(node);
     }
     return node;
   }
@@ -185,6 +206,14 @@ class App {
     } catch (err) {
       console.error('[main] falha ao criar as metas', err);
       this.goals = null;
+    }
+    // [guia] Tabela "presente = efeito". Como tudo nesta seção, uma falha aqui não pode impedir o
+    // jogo de subir. Nasce com o catálogo de fallback e troca para o do servidor no hello.
+    try {
+      this.giftGuide = createGiftGuide(this.ensureGuideContainer(root));
+    } catch (err) {
+      console.error('[main] falha ao criar o guia de presentes', err);
+      this.giftGuide = null;
     }
     this.audio = createAudio(this.config.audio, { autoResume: true });
     this.net = createNet(this.config.wsUrl, { log: (m, e) => console.warn(m, e) });
@@ -263,6 +292,8 @@ class App {
       this.monet(() => this.goals?.setLeaderboard(hello.leaderboard)); // [monet]
     }
     if (hello.tiktok) this.hud.setTiktokStatus(hello.tiktok);
+    // [guia] O catálogo vem no hello; o guia troca o fallback embutido pelos presentes reais.
+    if (hello.rules) this.monet(() => this.giftGuide?.setRules(hello.rules));
 
     // [persist] Papel desta aba (dono × espelho) e estado da rodada guardado no servidor.
     this.applyRole(hello.role);
@@ -763,6 +794,9 @@ class App {
       this.safe(() => this.renderer?.setLeader(msg.leader || null));
       this.monet(() => this.goals?.setLeaderboard(msg)); // [monet] alimenta meta / ranking / duelo
     });
+    // [guia] Catálogo editado no painel (PUT /api/gifts): o servidor faz broadcast de 'rules' e o
+    // guia se redesenha sozinho — nenhum reload de overlay é preciso durante a live.
+    net.on('rules', (msg) => this.monet(() => this.giftGuide?.setRules(msg)));
     net.on('gift', (msg) => this.onGift(msg));
     net.on('chat', (msg) => this.hud.pushChat(msg));
     net.on('like', (msg) => this.hud.showLike(msg));
@@ -1038,6 +1072,7 @@ class App {
         const visible = !this.hud.root.classList.contains('hud-hidden');
         this.monet(() => this.alerts?.setVisible(visible));
         this.monet(() => this.goals?.setVisible(visible));
+        this.monet(() => this.giftGuide?.setVisible(visible)); // [guia]
         return;
       }
       case 'audio': {
@@ -1090,6 +1125,7 @@ class App {
       try { this.disposeStage?.(); } catch { /* ignore */ } // [layout]
       try { this.alerts?.destroy(); } catch { /* ignore */ } // [monet]
       try { this.goals?.destroy(); } catch { /* ignore */ }  // [monet]
+      try { this.giftGuide?.destroy(); } catch { /* ignore */ } // [guia]
       if (this.rafId) cancelAnimationFrame(this.rafId);
     });
   }

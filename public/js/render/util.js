@@ -186,7 +186,7 @@ export function drawAvatar(ctx, cx, cy, r, img, name) {
  * directly can fail for SVG / not-yet-decoded images ("bad image data"), so
  * every image texture goes through a canvas first.
  */
-export function imageTexture(img, size = 256) {
+export function imageTexture(img, size = 512) {  // [nitidez] avatares nítidos ao ampliar
   const c = makeCanvas(size, size);
   const ctx = c.getContext('2d');
   const iw = img.naturalWidth || img.width || 1;

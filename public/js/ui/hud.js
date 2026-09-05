@@ -19,13 +19,9 @@ const FLASH_MS = 480;
 // [compacto] Mínimo de vitórias seguidas para o selo 🔥 aparecer. Abaixo disso não é notícia.
 const STREAK_BADGE_MIN = 2;
 
-const STATUS_TEXT = {
-  connected: 'AO VIVO',
-  connecting: 'conectando…',
-  waiting_live: 'aguardando live',
-  error: 'erro',
-  disconnected: 'desconectado'
-};
+// [live-real] STATUS_TEXT (AO VIVO / conectando… / aguardando live / erro / desconectado) foi
+// removido junto com a pill que o exibia. O texto do estado da conexão continua existindo onde
+// serve para alguma coisa: no /painel do streamer (public/js/painel.js).
 
 const KIND_ICON = { info: 'ℹ️', warn: '⚠️', error: '⛔', success: '✅' };
 
@@ -166,6 +162,9 @@ export function createHud(root, opts = {}) {
 
   // ---- build skeleton (reuse existing containers when present) ----
   const bandTop = ensure(root, 'hud-top', 'header', 'band band-top');
+  // [live-real] O placar ganhou banda própria (topo do bloco principal, 11 % da altura); a barra de
+  // status e o progresso continuam em #hud-score, logo abaixo do duelo e do carrossel.
+  const bandScoreboard = ensure(root, 'hud-scoreboard', 'section', 'band band-scoreboard');
   const bandScore = ensure(root, 'hud-score', 'section', 'band band-score');
   const bandBoard = ensure(root, 'hud-board', 'section', 'band band-board');
   const bandLeader = ensure(root, 'hud-leader', 'section', 'band band-leader');
@@ -173,47 +172,28 @@ export function createHud(root, opts = {}) {
   const confettiLayer = ensure(root, 'hud-confetti', 'div', 'confetti hidden');
 
   // Top band --------------------------------------------------------------------------------
-  // [compacto] A faixa 0–11 % é coberta pela barra do app do TikTok, então TUDO que vivia aqui
-  // era invisível na live e ainda roubava espaço do que importa. O título ("COBRA 3D · AO VIVO")
-  // saiu: o público está vendo o jogo dentro de uma live, ele já sabe as duas coisas.
-  // As pills (status TikTok / 👁 / ❤️ / online-offline) são telemetria do STREAMER, não do
-  // público — "desconectado" só confunde quem assiste. Elas continuam existindo no DOM (os
-  // métodos setViewers/setTiktokStatus/setConnection seguem funcionando e o /painel usa os
-  // mesmos dados), mas ficam fora da tela do público salvo com ?debug=1.
-  const debugPills = (() => {
-    try { return new URLSearchParams(location.search).get('debug') === '1'; } catch { return false; }
-  })();
-
+  // [live-real] AS PILLS FORAM REMOVIDAS NA ORIGEM (2026-09-05). Elas já não entravam no DOM sem
+  // ?debug=1, mas o cliente foi literal ao ver a live: "esses coração, isso de ao vivo, online,
+  // desconectado, olhinho, 8.0 — tira, pô. Só coisa inútil". Um modo de depuração que ressuscita
+  // exatamente o que o dono do produto mandou tirar é uma armadilha: basta alguém abrir o overlay
+  // com ?debug=1 na OBS e o lixo volta ao ar na live. Então some o construtor inteiro —
+  // pill do status do TikTok (AO VIVO / desconectado), 👁 espectadores, ❤️ curtidas e o pill
+  // online/offline do WebSocket.
+  //
+  // O que sobrevive: o BURST de coraçõezinhos (`likeBurst`), que é animação, não número — ele
+  // mostra que a live está quente sem pedir para ninguém ler nada. E os métodos públicos
+  // setViewers / setTiktokStatus / setConnection continuam existindo como no-ops documentados
+  // (main.js os chama a cada mensagem do socket); quem precisa desses números é o /painel do
+  // streamer, que lê os mesmos dados direto do servidor.
   clear(bandTop);
-  const pills = el('div', 'pills');
-  const pillTiktok = el('div', 'pill pill-tiktok');
-  pillTiktok.dataset.status = 'disconnected';
-  const pillDot = el('span', 'pill-dot');
-  const pillText = el('span', 'pill-text', STATUS_TEXT.disconnected);
-  pillTiktok.append(pillDot, pillText);
-  const pillViewers = el('div', 'pill pill-viewers');
-  const viewersNum = el('b', 'num', '0');
-  pillViewers.append(el('span', 'pill-ico', '👁'), viewersNum);
-  const pillLikes = el('div', 'pill pill-likes');
-  const likesNum = el('b', 'num', '0');
-  const likeBurst = el('div', 'like-burst');
-  pillLikes.append(el('span', 'pill-ico', '❤️'), likesNum, likeBurst);
-  const pillWs = el('div', 'pill pill-ws');
-  pillWs.title = 'Conexão com o servidor';
-  pillWs.append(el('span', 'pill-dot'), el('span', 'pill-text', 'offline'));
-  pills.append(pillTiktok, pillViewers, pillLikes, pillWs);
-  // As pills só entram no DOM com ?debug=1. Ficar fora do DOM (em vez de escondido por CSS) é
-  // deliberado: não depende de nenhuma regra da folha de estilo para sumir da live, e o HUD do
-  // público não paga layout por elas. Os nós seguem vivos, então setViewers / setTiktokStatus /
-  // setConnection continuam escrevendo neles sem nenhum `if` extra — e com ?debug=1 aparecem.
-  if (debugPills) bandTop.append(pills);
-  bandTop.classList.toggle('band-debug', !debugPills);
+  const likeBurst = el('div', 'like-burst like-burst-free');
 
   // Score band ------------------------------------------------------------------------------
   // [compacto] VITÓRIAS × DERROTAS é a narrativa da live e continua sendo o maior número da tela.
   // O bloco SEQUÊNCIA (−2 · recorde 1) e os chips ✓✗✗ saíram: é estatística de nicho, que só o
   // streamer acompanha, e ocupava a metade direita da faixa mais nobre. O que sobra da ideia
   // vira um selo único e só quando é comemorável — uma sequência de vitórias (🔥 N seguidas).
+  clear(bandScoreboard);
   clear(bandScore);
   const scoreboard = el('div', 'glass scoreboard');
   const colWin = el('div', 'score-col win');
@@ -224,6 +204,7 @@ export function createHud(root, opts = {}) {
   colLoss.append(el('span', 'lbl', 'DERROTAS'), lossNum);
   const streakEl = el('div', 'streak-badge hidden');
   scoreboard.append(colWin, el('div', 'score-x', '✕'), colLoss, streakEl);
+  bandScoreboard.append(scoreboard);
 
   const statusRow = el('div', 'glass status-row');
   const mkStat = (ico, cls, initial, titleTxt) => {
@@ -245,11 +226,15 @@ export function createHud(root, opts = {}) {
   // herói ("mandei Galáxia → a cobra ficou protegida"), então ganha destaque enquanto dura.
   const [shieldW, shieldNum] = mkStat('🛡️', 'shield', '0s', 'Escudo ativo');
   shieldW.classList.add('shield', 'hidden');
-  // Fora da tela DE PROPÓSITO: os nós existem e continuam recebendo update() (nenhum `if` novo
-  // no caminho quente, e devolver qualquer um deles à faixa é acrescentar o wrapper no append
-  // abaixo), mas não são anexados ao DOM. Os wrappers `*W` ficam sem uso por isso.
+  // [live-real] ⚡ VELOCIDADE REMOVIDA NA ORIGEM. O cliente citou "8.0" pelo nome na lista do que
+  // é "coisa inútil". Ele tem razão pelo critério que vale aqui: ninguém manda presente por causa
+  // da velocidade, e nenhum presente do catálogo a mostra como efeito (o gelo e o relógio já se
+  // anunciam por toast e pela animação da cobra). O nó saiu de vez — não há mais `speedNum`, e
+  // update() deixou de escrever nele.
+  // 🍎 maçãs e ⏱ tempo continuam existindo fora da tela: são a MESMA informação que a barra de
+  // progresso e o painel de fim de rodada já contam, mas os nós ainda recebem update() sem
+  // custo perceptível e servem de ponto de reenxerto se algum dia voltarem.
   const [, applesNum] = mkStat('🍎', 'apples', '0', 'Maçãs');
-  const [, speedNum] = mkStat('⚡', 'speed', '0', 'Velocidade (casas/s)');
   const [, timerNum] = mkStat('⏱', 'timer', '0:00', 'Tempo da rodada');
   statusRow.append(lenW, bombsW, shieldW);
 
@@ -258,9 +243,16 @@ export function createHud(root, opts = {}) {
   const progress = el('div', 'progress');
   progress.setAttribute('role', 'progressbar');
   const progressFill = el('div', 'progress-fill');
+  // [live real] O cliente pediu para tirar a porcentagem E a frase "Faltam N para a VITÓRIA":
+  // numa live ninguém lê número em movimento, o avanço se percebe pela barra enchendo. Menos
+  // uma linha de texto = mais espaço para o duelo e a tabela de presentes, que é o que converte.
+  // O nó continua existindo (oculto por CSS) porque setText() abaixo ainda o alimenta e ele
+  // serve de leitura acessível do progresso.
   const progressText = el('div', 'progress-text', 'Encha o tabuleiro para vencer!');
   progress.append(progressFill, progressText);
-  bandScore.append(scoreboard, statusRow, progress);
+  // [live-real] O placar mudou de banda (subiu para #hud-scoreboard, no topo do bloco principal);
+  // #hud-score fica com a linha de status e o progresso, que ocupam a parte de baixo do bloco.
+  bandScore.append(statusRow, progress);
 
   // Board band (transient only) -------------------------------------------------------------
   clear(bandBoard);
@@ -270,12 +262,9 @@ export function createHud(root, opts = {}) {
   const roundEndOv = el('div', 'overlay roundend hidden');
   bandBoard.append(giftSlot, toasts, countdownOv, roundEndOv);
   // [compacto] O contador ❤️ saiu com as pills, mas a chuva de coraçõezinhos continua: é
-  // decoração viva (mostra que a live está quente), não informação para ler. Precisa ser
-  // reancorada DEPOIS do clear(bandBoard) acima, senão nasce e morre no mesmo tick.
-  if (!debugPills) {
-    likeBurst.classList.add('like-burst-free');
-    bandBoard.appendChild(likeBurst);
-  }
+  // decoração viva (mostra que a live está quente), não informação para ler. É anexada DEPOIS do
+  // clear(bandBoard) acima, senão nasceria e morreria no mesmo tick.
+  bandBoard.appendChild(likeBurst);
 
   // Leader band: VILÕES × HERÓIS battle (leaderboard v2) -------------------------------------
   clear(bandLeader);
@@ -346,7 +335,6 @@ export function createHud(root, opts = {}) {
   const clearT = (id) => { if (id) { clearTimeout(id); timers.delete(id); } };
 
   const cache = {}; // last rendered values to avoid useless DOM writes
-  let likesTotal = 0;
   let lastLikeAt = 0;
   let flashTimer = null;
 
@@ -369,7 +357,6 @@ export function createHud(root, opts = {}) {
     const queued = Number(snap.bombQueue ?? 0);
     setText(bombsNum, 'bombs', queued > 0 ? `${fmt(bombCount)}+${fmt(queued)}` : fmt(bombCount));
     setText(lenNum, 'length', fmt(snap.length ?? (snap.snake ? snap.snake.length : 0)));
-    setText(speedNum, 'speed', (Number(snap.speed) || 0).toFixed(1));
     let dur = Number(snap.durationMs);
     if (!Number.isFinite(dur)) {
       const end = snap.endedAt || Date.now();
@@ -659,10 +646,10 @@ export function createHud(root, opts = {}) {
 
   // ---- likes --------------------------------------------------------------------------
   function showLike(like) {
+    // [live-real] O TOTAL de curtidas (❤️ 8.4 mil) saiu da tela com as pills — é vaidade de
+    // streamer, não informação de jogo. O que fica é a chuva de coraçõezinhos: pura animação,
+    // ninguém precisa ler, e ela é a prova visual de que a live está viva.
     const count = Math.max(1, Number(like?.count) || 1);
-    if (Number.isFinite(Number(like?.total)) && Number(like.total) > 0) likesTotal = Number(like.total);
-    else likesTotal += count;
-    setText(likesNum, 'likes', fmt(likesTotal));
     const now = performance.now();
     if (now - lastLikeAt < LIKE_MIN_GAP_MS) return;
     lastLikeAt = now;
@@ -883,28 +870,22 @@ export function createHud(root, opts = {}) {
   }
 
   // ---- misc ---------------------------------------------------------------------------
-  function setViewers(n) {
-    setText(viewersNum, 'viewers', fmt(Math.max(0, Number(n) || 0)));
-  }
+  // [live-real] TELEMETRIA DO STREAMER — os três setters abaixo são NO-OPS deliberados.
+  // 👁 espectadores, o status do TikTok (AO VIVO / conectando / desconectado) e o online/offline do
+  // WebSocket saíram da tela por pedido literal do cliente: nada disso ajuda o público a entender
+  // o jogo nem a mandar presente, e "desconectado" numa live só assusta quem está assistindo.
+  // Os métodos ficam porque main.js os chama a cada mensagem do socket (bindNet) e apagar as
+  // chamadas seria mexer num arquivo que não é meu — e porque um dia a informação pode voltar num
+  // lugar melhor. Quem realmente precisa desses números é o /painel do streamer, que os lê do
+  // servidor sem passar por aqui.
+  /** No-op: espectadores não aparecem no overlay do público. Ver /painel. */
+  function setViewers() { /* intencionalmente vazio */ }
 
-  function setTiktokStatus(status) {
-    const st = STATUS_TEXT[status?.status] ? status.status : 'disconnected';
-    pillTiktok.dataset.status = st;
-    let txt = STATUS_TEXT[st];
-    if (st === 'connected' && status?.username) txt = `AO VIVO @${status.username}`;
-    else if (st === 'waiting_live' && status?.username) txt = `aguardando @${status.username}`;
-    else if (st === 'error' && status?.message) txt = `erro: ${truncate(status.message, 28)}`;
-    setText(pillText, 'tt', txt);
-    pillTiktok.title = status?.message || '';
-    if (Number.isFinite(Number(status?.viewers))) setViewers(status.viewers);
-  }
+  /** No-op: o status da conexão com o TikTok é telemetria do streamer. Ver /painel. */
+  function setTiktokStatus() { /* intencionalmente vazio */ }
 
-  function setConnection(online) {
-    const on = !!online;
-    pillWs.classList.toggle('on', on);
-    pillWs.classList.toggle('off', !on);
-    pillWs.querySelector('.pill-text').textContent = on ? 'online' : 'offline';
-  }
+  /** No-op: a saúde do WebSocket é telemetria do streamer. Ver /painel. */
+  function setConnection() { /* intencionalmente vazio */ }
 
   function flash(kind = 'red') {
     const k = ['red', 'gold', 'green'].includes(kind) ? kind : 'red';

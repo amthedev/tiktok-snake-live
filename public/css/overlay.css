@@ -57,37 +57,50 @@
 
   /* [layout] TikTok LIVE safe-area map, as % of the stage height. Change them here only.
    *
-   * [celular] REEQUILÍBRIO 2026-09-04. O mapa antigo (11/20/72/79) espremia todo o texto em 9 % de
-   * cabeçalho + 7 % de monetização. Como o piso de legibilidade é ~22 px equivalentes a 1080
-   * (compressão do TikTok vista no celular), texto grande simplesmente NÃO CABIA — daí os 13–16 px
-   * medidos. A correção é orçamentária, não estética:
-   *   cabeçalho  9 % → 13 %  (11 → 24)
-   *   tabuleiro 52 % → 48 %  (24 → 72)  — continua sendo o maior bloco, de longe
-   * Os 4 % que o tabuleiro cede são imperceptíveis (o board é quadrado, limitado pela LARGURA:
-   * medido, a projeção ocupa 84 % da largura e nem encosta no limite vertical).
+   * [live-real] INVERSÃO DA PRIORIDADE VERTICAL — 2026-09-05. O cliente rodou o overlay numa LIVE
+   * REAL e mandou o print. O que o print provou, e que nenhuma medida em navegador podia prever:
+   * o chat do TikTok, as mensagens de boas-vindas e os avisos de "fulano entrou" NÃO ficam
+   * confinados numa barra de baixo — eles SOBEM pela tela e cobrem tudo abaixo de ~70 % da altura.
+   * O painel VILÕES × HERÓIS (72–76 %) e o RANKING DA LIVE (76–79 %) estavam ILEGÍVEIS, com balões
+   * de chat por cima. Toda a premissa de "faixa de monetização em 72–79 %" caiu junto.
    *
-   * [celular] CORREÇÃO 2026-09-04 (2ª passada): --zone-money tinha sido esticado para 83, com a
-   * justificativa de que a zona morta de baixo (21 %) estava "vazia". Ela NÃO está vazia — está
-   * coberta pelo app. docs/DECISOES-LIVE.md §2 registra a medida oficial acordada com o cliente:
-   * "o app do TikTok cobre ~21 % da base (comentários, botões, barra de presentes)". Medido depois
-   * da mudança, o cartão RANKING DA LIVE (nome do líder + moedas, 30 px) ia até 82 % da altura, ou
-   * seja, POR BAIXO da UI do TikTok: aumentar a fonte não adianta se o pixel não chega ao
-   * espectador. Voltou para 79. A faixa de monetização fica com 7 %, e o que garante a legibilidade
-   * lá é a regra de ouro (menos elementos, cada um maior), não roubar pixel da zona morta. */
+   * A correção é uma inversão, não um ajuste: o que o público PRECISA ver sobe para cima do
+   * tabuleiro, e a metade de baixo passa a não carregar nada que dependa de ser lido.
+   *   0 → 11 %   ZONA MORTA da barra do TikTok (foto, Seguir, contagem, X). Continua vazia.
+   *  11 → 30 %   BLOCO PRINCIPAL: placar VITÓRIAS × DERROTAS, DUELO VILÕES × HERÓIS (que subiu de
+   *              72 %) e o progresso. É a faixa mais visível da live: logo abaixo da barra do app,
+   *              e o chat nunca chega lá.
+   *  30 → 71 %   TABULEIRO. Cede 3 % no topo e ganha 1 % embaixo — ver a nota do BAND_PORTRAIT em
+   *              render/camera.js: a projeção é limitada pela LARGURA, então 41 % de faixa ainda
+   *              enquadra o board inteiro no mesmo tamanho.
+   *  71 → 79 %   TABELA DE PRESENTES (#hud-guide). É a informação que CONVERTE (🌹 = 💣, 🎮 = 🍎) e
+   *              fica no último trecho ainda acima do pior do chat.
+   *  79 → 100 %  ZONA MORTA. Nada. Só o trilho de chat local, que é descartável por natureza.
+   *
+   * O nome --zone-money virou --zone-guide: a faixa mudou de dono (era o carrossel de metas, agora
+   * é a tabela de presentes). O carrossel subiu para o bloco principal, alternando com o duelo. */
   --zone-dead-top: 11;    /* 0 → 11 %  : TikTok app bar / profile */
-  --zone-head: 24;        /* 11 → 24 % : cabeçalho (placar + status + progresso) */
-  --zone-board: 72;       /* 24 → 72 % : the board */
-  --zone-money: 79;       /* 72 → 79 % : monetization strip */
+  /* [live real 2026-09-04] A tabela de presentes estava em 71–79 %, exatamente onde o chat do
+     TikTok escreve — o cliente viu na live e pediu tudo importante para cima. Ela sobe para o
+     bloco principal e o tabuleiro herda todo o espaço até 79 %. */
+  --zone-head: 36;        /* 11 → 36 % : BLOCO PRINCIPAL (placar + duelo + tabela + progresso) */
+  --zone-board: 79;       /* 36 → 79 % : the board */
+  --zone-guide: 79;       /* mantido para compatibilidade das guias de debug */
   /* 79 → 100 % : TikTok comments / buttons / gift bar — dead zone */
 
   --pad-x: 5cqw;          /* ~5 % side margin for textual content */
 
-  /* [celular] A faixa de monetização (72–79 %, 7 % de altura) é dividida entre DUAS coisas: o duelo
-     em cima e o carrossel de metas embaixo. --duel-h é o único número que decide o corte, para as
-     duas bandas nunca se sobreporem nem sobrar buraco — elas ladrilham a faixa por construção.
-     4.2 é o valor MEDIDO do cartão do duelo depois de tirar a linha duplicada de líderes por time
-     (battle-cols, ver hud.js): 4,1 u + folga. Sobram 2,8 u para o carrossel de metas. */
-  --duel-h: 4.2;
+  /* [live-real] O bloco principal (11–30 %, 19 u) é ladrilhado por construção, de cima para baixo:
+       --score-h  placar VITÓRIAS × DERROTAS + selo de sequência
+       --duel-h   DUELO VILÕES × HERÓIS (subiu da faixa de baixo) — o painel fixo
+       --money-h  carrossel: meta, ranking da live, dica de presente
+       o resto     linha de status (🐍 💣 🛡️) + barra de progresso, dentro de .band-score
+     Os três valores abaixo são MEDIDOS, não estimados; a soma tem de caber em
+     (--zone-head − --zone-dead-top). Mexer num pede remedir os outros. */
+  --score-h: 5.4;
+  --duel-h: 4.4;
+  --money-h: 3.4;
+  --guide-h: 6.0;   /* [live real] tabela de presentes, agora no topo */
 
   /* [celular] ESCALA TIPOGRÁFICA — piso duro de legibilidade -----------------------------------
    * Unidade: 1rem == 1 % da ALTURA do palco. Num palco 1080×1920 → 1rem == 19,2 px, e é nessa
@@ -201,15 +214,18 @@ html, body {
 }
 
 /* [layout] Safe-area bands — all offsets in --u (1 % of the STAGE height) ------------------
- * .band-top    0–11 %  : ZONA MORTA. Kept as a container for decoration only; hud.js still puts
- *                        the title + status pills here, so they are scaled down and dimmed — if
- *                        TikTok's app bar hides them nothing of value is lost.
- * .band-score 11–20 %  : the real header (scoreboard / round / viewers / progress).
- * .band-board 20–72 %  : the board. Transient DOM only.
- * .band-money 72–79 %  : monetization strip (content owned by ui/goals.js + ui/alerts.js).
- * .band-leader         : the VILÕES × HERÓIS battle, tucked into the top of the money strip's
- *                        neighbourhood (64–72 %) so it stays above 79 %.
- * .band-chat           : narrow left rail inside the board band, discreet.
+ * [live-real] AS BANDAS EMPILHAM DE CIMA PARA BAIXO, e a ordem é a ordem de IMPORTÂNCIA. Depois do
+ * print da live real ficou claro que altura na tela = visibilidade: quanto mais em cima, mais
+ * chance de o pixel chegar ao espectador sem um balão de chat por cima.
+ *
+ * .band-top     0–11 %  : ZONA MORTA (barra do app). Vazia. Existe só como âncora de layout.
+ * .band-score  11–30 %  : BLOCO PRINCIPAL. Contém, empilhados: placar, duelo, carrossel, status e
+ *                         progresso. As três primeiras são bandas próprias posicionadas dentro
+ *                         desta faixa (ladrilhadas por --score-h / --duel-h / --money-h).
+ * .band-board  30–71 %  : o tabuleiro. Só DOM transitório (cartão de presente, toasts, contagem).
+ * .band-guide  71–79 %  : TABELA DE PRESENTES (#hud-guide), do agente de conteúdo.
+ * .band-chat   79–100 % : trilho de chat, na zona morta DE PROPÓSITO — é o único conteúdo
+ *                         descartável do overlay (ver a nota em .band-chat).
  */
 .band-top {
   top: 0;
@@ -222,47 +238,74 @@ html, body {
   opacity: 0.72;
   transform-origin: top center;
 }
+/* [live-real] .band-score deixou de ser "o cabeçalho" e virou O BLOCO PRINCIPAL: ela começa onde a
+   barra do TikTok acaba e vai até o tabuleiro. O placar, o duelo e o carrossel são posicionados
+   por cima dela (bandas absolutas próprias); o que sobra da faixa — a parte de baixo — é o que
+   esta banda desenha com o próprio flow: a linha de status e a barra de progresso. Daí o
+   padding-top: ele reserva exatamente a altura das três bandas empilhadas acima. */
 .band-score {
   top: calc(var(--zone-dead-top) * var(--u));
   height: calc((var(--zone-head) - var(--zone-dead-top)) * var(--u));
-  padding: calc(0.4 * var(--u)) var(--pad-x);
+  /* [live-real] --guide-h ENTRA NESTA CONTA. A tabela de presentes é a quarta banda absoluta
+     empilhada dentro do bloco principal (placar → duelo → carrossel → tabela); sem somá-la aqui,
+     o padding parava em 24,2 % e a linha de status era desenhada POR CIMA da tabela — medido:
+     status 26,5–29,4 % contra tabela 24,2–30,2 %. Quem mexer numa das quatro alturas remede esta
+     soma, que é o que garante que o flow comece onde as bandas absolutas acabam. */
+  padding: calc((var(--score-h) + var(--duel-h) + var(--money-h) + var(--guide-h) + 0.3) * var(--u)) var(--pad-x) calc(0.3 * var(--u));
   flex-direction: column;
   justify-content: space-evenly;
-  gap: calc(0.4 * var(--u));
+  gap: calc(0.3 * var(--u));
+}
+/* O placar ocupa o topo do bloco principal: é o primeiro pixel legível da live. */
+.band-scoreboard {
+  top: calc(var(--zone-dead-top) * var(--u));
+  height: calc(var(--score-h) * var(--u));
+  padding: 0 var(--pad-x);
+  align-items: center;
+  justify-content: center;
 }
 .band-board {
   top: calc(var(--zone-head) * var(--u));
   height: calc((var(--zone-board) - var(--zone-head)) * var(--u));
 }
-/* [celular] O PAINEL DO DUELO SAIU DE CIMA DO TABULEIRO.
- * Ele vivia dentro da faixa do board (64–72 %), o que obrigava a câmera a terminar em 64 % e
- * ESPREMIA o 3D. Medido: com o texto no tamanho legível o painel precisava de 12 % e a câmera
- * caía para 0.60 — o tabuleiro encolhia de 92 % para 78 % da largura do palco (-15 %). Como o
- * tabuleiro é O ESPETÁCULO, quem se mudou foi o painel: ele é conteúdo de MONETIZAÇÃO (nomes de
- * quem mandou presente) e agora divide a faixa 72–79 % com as metas, empilhado.
- * Resultado: a câmera volta a enquadrar 24–72 %, o tabuleiro volta aos 92 % de largura (idêntico
- * ao layout antigo) e o texto continua grande. */
+/* [live-real] O DUELO SUBIU DE 72 % PARA O BLOCO PRINCIPAL.
+ * Ele estava em 72–76 %, que o print da live mostrou coberto pelo chat: o painel mais "quente" do
+ * overlay (é ele que transforma presente em disputa) era justamente o ilegível. Agora fica logo
+ * abaixo do placar, na faixa que o chat não alcança. O tabuleiro paga 1 % por isso (30 % em vez de
+ * 29 %) e não encolhe nada — ver a nota do BAND_PORTRAIT em render/camera.js. */
 .band-leader {
-  top: calc(var(--zone-board) * var(--u));
+  top: calc((var(--zone-dead-top) + var(--score-h)) * var(--u));
   height: calc(var(--duel-h) * var(--u));
   padding: 0 var(--pad-x);
   flex-direction: column;
   justify-content: center;
   gap: calc(0.2 * var(--u));
 }
-/* [layout] Reserved, styled, empty. The content agent fills #hud-money.
-   [celular] Ocupa a METADE DE BAIXO da faixa de monetização (o duelo ficou com a de cima),
-   o que a mantém dentro de 72–79 % sem nunca tocar o tabuleiro. */
+/* [live-real] O carrossel (meta / ranking da live / dica) subiu junto e fica logo abaixo do duelo.
+   Os dois se alternam na leitura sem competir: o duelo é fixo, o carrossel gira. */
 .band-money {
-  top: calc((var(--zone-board) + var(--duel-h)) * var(--u));
-  height: calc((var(--zone-money) - var(--zone-board) - var(--duel-h)) * var(--u));
+  top: calc((var(--zone-dead-top) + var(--score-h) + var(--duel-h)) * var(--u));
+  height: calc(var(--money-h) * var(--u));
+  padding: 0 var(--pad-x);
+  align-items: center;
+  justify-content: center;
+  gap: calc(0.6 * var(--u));
+}
+/* [layout] Reserved, styled, empty. É AQUI que o agente de conteúdo desenha a TABELA DE PRESENTES:
+   o container é #hud-guide e o seletor de estilo é .band-guide > (o que ele criar).
+   [live-real] 71–79 % é o último trecho da tela ainda acima do pior do chat, e é o lugar certo
+   para a tabela: ela é a informação que CONVERTE (🌹 = 💣, 🎮 = 🍎), então precisa de largura
+   inteira e de estar perto de onde o dedo do espectador já está (a barra de presentes). */
+.band-guide {
+  top: calc((var(--zone-dead-top) + var(--score-h) + var(--duel-h) + var(--money-h)) * var(--u));
+  height: calc(var(--guide-h) * var(--u));
   padding: 0 var(--pad-x);
   align-items: center;
   justify-content: center;
   gap: calc(0.6 * var(--u));
 }
 /* A faint plinth so the strip reads as a deliberate slot even before it has content. */
-.band-money::before {
+.band-guide::before {
   content: "";
   position: absolute;
   inset: calc(0.3 * var(--u)) var(--pad-x);
@@ -272,105 +315,41 @@ html, body {
   pointer-events: none;
   z-index: -1;
 }
-.band-money:not(:empty)::before { border-style: solid; border-color: rgba(255, 255, 255, 0.14); }
-/* [layout] Chat rail: bottom-left of the board band, inside the safe area, deliberately quiet. */
+.band-guide:not(:empty)::before { border-style: solid; border-color: rgba(255, 255, 255, 0.14); }
+/* [layout] Chat rail.
+   [live-real] VOLTOU PARA A ZONA MORTA DE BAIXO, e desta vez isso é a decisão certa e não o
+   descuido antigo. O chat local é o ÚNICO conteúdo do overlay que pode ser perdido sem prejuízo:
+   ele repete, com atraso, o que o chat nativo do TikTok já mostra ao lado. Colocá-lo em 79–100 %
+   libera a faixa do tabuleiro (onde ele passava por cima do jogo) e usa a zona morta para o que
+   ela serve — enfeite que ninguém precisa ler. */
 .band-chat {
-  top: calc(var(--zone-head) * var(--u));
-  /* [celular] O painel do duelo saiu da faixa do tabuleiro, então o trilho de chat pode usar quase
-     toda ela; guarda 2 % de respiro para não encostar na borda de baixo do board. */
-  height: calc((var(--zone-board) - var(--zone-head) - 2) * var(--u));
+  top: calc(var(--zone-guide) * var(--u));
+  height: calc((100 - var(--zone-guide)) * var(--u));
   right: auto;
-  /* Mais largo que os 44cqw antigos: o texto cresceu e o nome não pode virar "Ma…". */
   width: 62cqw;
-  padding: 0 0 calc(0.5 * var(--u)) var(--pad-x);
-  align-items: flex-end;
+  padding: calc(0.5 * var(--u)) 0 calc(0.5 * var(--u)) var(--pad-x);
+  align-items: flex-start;
+  opacity: 0.55;
 }
 
 /* Top band ------------------------------------------------------------------------ */
-.title-wrap { display: flex; justify-content: center; }
-.title {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.45em;
-  /* [celular] Zona morta (0–11 %): a barra do TikTok cobre isto na live. É decoração pura, então
-     NÃO entra no orçamento de legibilidade — mas também não pode ser microscópica quando a barra
-     não está lá (preview, OBS sem overlay do app). Fica em --fs-titulo. */
-  font-size: var(--fs-titulo);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.title-main {
-  background: linear-gradient(90deg, #fff 0%, var(--cyan) 55%, #7dd3fc 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: none;
-  filter: drop-shadow(0 0 0.35rem rgba(34, 211, 238, 0.55)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.9));
-}
-.title-dot { color: var(--muted); }
-.title-live {
-  color: #fff;
-  background: linear-gradient(90deg, #ff2d55, #ff4d7a);
-  padding: 0.08em 0.5em 0.1em;
-  border-radius: 0.4em;
-  font-size: 0.8em;
-  box-shadow: 0 0 0.8rem rgba(255, 45, 85, 0.65);
-  animation: live-pulse 2.2s ease-in-out infinite;
-}
-@keyframes live-pulse {
-  0%, 100% { box-shadow: 0 0 0.5rem rgba(255, 45, 85, 0.55); }
-  50% { box-shadow: 0 0 1.1rem rgba(255, 45, 85, 0.95); }
-}
+/* [live-real] O TÍTULO "COBRA 3D · AO VIVO" e o selo vermelho pulsante que o acompanhava também
+   saíram (.title-wrap / .title / .title-main / .title-dot / .title-live e a @keyframes
+   live-pulse). O selo era, literalmente, o "isso de ao vivo" da lista do cliente — e ele está
+   certo duas vezes: o público já sabe que está numa live, e o selo ficava na faixa 0–11 %, sob a
+   barra do próprio app. hud.js não constrói mais esses nós desde a passada [compacto]; o CSS
+   sobrevivente era só entulho. A banda .band-top continua existindo como âncora de layout. */
 
-.pills {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: nowrap;
-}
-.pill {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-  /* [celular] Mesmo sendo zona morta, nada visível fica abaixo do piso. */
-  font-size: var(--fs-mini);
-  padding: 0.22em 0.75em;
-  border-radius: 999px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  white-space: nowrap;
-  box-shadow: var(--shadow);
-}
-.pill-ico { font-size: 0.95em; }
-.pill-dot {
-  width: 0.6em; height: 0.6em; border-radius: 50%;
-  background: #94a3b8;
-  box-shadow: 0 0 0.4em currentColor;
-}
-.pill-tiktok[data-status="connected"] .pill-dot { background: var(--rose); color: var(--rose); animation: dot-blink 1.4s ease-in-out infinite; }
-.pill-tiktok[data-status="connected"] { border-color: rgba(251, 113, 133, 0.6); }
-.pill-tiktok[data-status="connecting"] .pill-dot { background: var(--gold); color: var(--gold); animation: dot-blink 0.8s ease-in-out infinite; }
-.pill-tiktok[data-status="waiting_live"] .pill-dot { background: var(--cyan); color: var(--cyan); animation: dot-blink 2s ease-in-out infinite; }
-.pill-tiktok[data-status="error"] .pill-dot { background: #ef4444; color: #ef4444; }
-.pill-tiktok[data-status="disconnected"] .pill-text { color: var(--muted); }
-@keyframes dot-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+/* [live-real] TODO O CSS DAS PILLS FOI REMOVIDO (2026-09-05).
+   Eram ~45 linhas para estilizar .pills / .pill / .pill-dot / .pill-tiktok[data-status] /
+   .pill-ws / .pill-viewers / .pill-likes — os nós que o cliente mandou tirar ("esses coração,
+   isso de ao vivo, online, desconectado, olhinho — tira, pô"). hud.js já não os constrói, então
+   estas regras não casavam com nada: CSS morto que ainda daria a impressão, para quem lesse o
+   arquivo, de que o overlay tem um cabeçalho de status. Junto foi a @keyframes dot-blink, que
+   só animava o pontinho piscante das pills. */
 
-/* [celular] O pill do WebSocket é DEBUG puro (saúde da conexão com o próprio servidor): não
-   interessa a ninguém que assiste. Some por completo em OBS/live; no preview local fica, mas
-   respeitando o piso de legibilidade como todo o resto. */
-.pill-ws { font-size: var(--fs-mini); padding-inline: 0.6em; }
-.pill-ws .pill-text { color: var(--muted); }
-.pill-ws.on .pill-dot { background: var(--emerald); color: var(--emerald); }
-.pill-ws.off .pill-dot { background: #ef4444; color: #ef4444; animation: dot-blink 1s ease-in-out infinite; }
-body.obs .pill-ws { display: none; }
-
-.pill-likes { overflow: visible; }
+/* A chuva de coraçõezinhos sobreviveu ao expurgo: é animação, não número — ninguém precisa ler.
+   Sem a pill que a ancorava, ela flutua sobre a faixa do tabuleiro (.like-burst-free). */
 .like-burst {
   position: absolute;
   left: 0; right: 0; bottom: 60%;
@@ -392,13 +371,16 @@ body.obs .pill-ws { display: none; }
 }
 
 /* Score band ---------------------------------------------------------------------- */
+/* [live-real] O placar agora ocupa a banda inteira do topo do bloco principal, então ele estica em
+   vez de flutuar: uma barra cheia é mais fácil de achar de relance num vídeo comprimido. */
 .scoreboard {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.9rem;
-  padding: 0.35rem 0.9rem;
-  min-height: 4.4rem;
+  padding: 0.2rem 0.9rem;
+  width: 100%;
+  height: 100%;
 }
 .score-col {
   display: flex;
@@ -530,16 +512,7 @@ body.obs .pill-ws { display: none; }
   animation: shimmer 2.4s linear infinite;
 }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-.progress-text {
-  position: relative;
-  text-align: center;
-  /* [celular] 0.85rem ≈ 16 px equivalentes a 1080 → sobe para o corpo (≈26 px). O line-height
-     acompanha a nova altura da barra para o texto continuar centrado verticalmente. */
-  font-size: var(--fs-corpo);
-  line-height: 2.1rem;
-  letter-spacing: 0.02em;
-  font-weight: 800;
-}
+.progress-text { display: none; }  /* [live real] só a barra: sem porcentagem e sem "Faltam N" */
 
 /* Board band: transient elements only ------------------------------------------- */
 .band-board { pointer-events: none; }
@@ -1243,7 +1216,9 @@ body.flash-green .safe::after { opacity: 1; transition: none; background: radial
 .sz-zone.dead .sz-label { color: #fecaca; }
 .sz-zone.head  { background: rgba(34, 211, 238, 0.16); }
 .sz-zone.board { background: rgba(52, 211, 153, 0.1); align-items: flex-start; padding-top: 0.4rem; }
-.sz-zone.money { background: rgba(251, 191, 36, 0.22); }
+/* [live-real] A faixa dourada mudou de dono: era a monetização (72–79 %), agora é a tabela de
+   presentes (71–79 %). A cor fica — é o "aqui mora o que converte" do mapa de zonas. */
+.sz-zone.guide { background: rgba(251, 191, 36, 0.22); }
 /* Side margins for text content. */
 .sz-side {
   position: absolute;
@@ -1315,7 +1290,7 @@ body.obs .safe { box-shadow: none; }
    own aspect never re-lays anything out — it only decides how big the stage is drawn. */
 
 @media (prefers-reduced-motion: reduce) {
-  .title-live, .legend, .stat-mini.danger, .stat-mini.shield, .progress-fill::after,
+  .stat-mini.danger, .stat-mini.shield, .progress-fill::after,
   .gift-card.tier-mega, .gift-card.tier-supreme, .gift-spark { animation: none !important; }
   .tug-fill, .tug-seam { transition: none !important; }
 }

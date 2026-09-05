@@ -10,21 +10,20 @@ import * as THREE from 'three';
 export const FOV = 36;
 export const ELEVATION_DEG = 55;
 // Single format by design (client request 2026-09-03): TikTok LIVE portrait 9:16.
-// [layout] The board's SAFE STRIP is 24–72 % of the stage (--zone-head → --zone-board in
-// overlay.css), and the camera now uses ALL of it. Keep in sync with overlay.css's --zone-* map.
+// [layout] The board's SAFE STRIP is 30–71 % of the stage (--zone-head → --zone-board in
+// overlay.css), and the camera uses ALL of it. Keep in sync with overlay.css's --zone-* map and
+// with ZONES in ui/stage.js.
 //
-// [celular] Reequilíbrio 2026-09-04. Duas mudanças, e a segunda é a que importa:
-//   1. O topo subiu 0.20 → 0.24: o cabeçalho precisou de 4 % a mais para caber texto legível
-//      no celular (piso de ~22 px equivalentes a 1080).
-//   2. A base subiu 0.64 → 0.72: o painel VILÕES × HERÓIS SAIU de cima do tabuleiro e foi para a
-//      faixa de monetização (72–83 %), onde ele conceitualmente pertence.
+// [live-real] 2026-09-05: a faixa passou de 24–72 % para 30–71 %. O motivo não é enquadramento, é
+// o chat do TikTok: numa live real ele cobre tudo abaixo de ~70 %, então o painel do duelo (que
+// vivia em 72–76 %) subiu para o bloco principal, logo abaixo da barra do app. O tabuleiro pagou
+// 3 % no topo e 1 % embaixo para abrir esse espaço.
 //
-// Por que (2) foi necessário: MEDIDO, o board é limitado pela ALTURA da faixa, não pela largura.
-// Com o painel ainda por cima e o texto no tamanho legível, a faixa caía para 24–60 % e a
-// projeção encolhia de 92 % para 78 % da largura do palco — 15 % menor. O tabuleiro é o
-// espetáculo; quem cedeu foi o painel. Com 24–72 % a projeção volta a ser limitada pela LARGURA
-// (WIDTH_FRACTION = 0.92) e sobram ~41 px de folga vertical: tamanho idêntico ao layout original.
-export const BAND_PORTRAIT = [0.24, 0.72];
+// Custo real, MEDIDO: nenhum. A projeção é limitada pela LARGURA (WIDTH_FRACTION = 0.98), não pela
+// altura da faixa — com 48 % de faixa sobravam ~41 px de folga vertical, e com 41 % ainda sobra
+// folga. O board é desenhado exatamente do mesmo tamanho; só o centro dele desceu ~1,5 % da
+// altura do palco, o que também é bom: afasta o tabuleiro da zona de chat.
+export const BAND_PORTRAIT = [0.36, 0.79];  // [live real] alinhado às zonas do CSS: a tabela de presentes subiu e o tabuleiro herdou o espaço até 79 %
 export const BAND_LANDSCAPE = BAND_PORTRAIT;
 export const WIDTH_FRACTION = 0.98;
 // [enquadramento] 2026-09-04: com 0.92 a câmera resolvia a distância pela LARGURA e o tabuleiro

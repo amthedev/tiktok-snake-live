@@ -1,0 +1,265 @@
+/* public/css/giftguide.css — [guia] TABELA VISUAL DE PRESENTES
+ *
+ * Estilo do painel criado por js/ui/giftguide.js. Ele responde ao pedido literal do cliente
+ * ("🌹 = 💣, GG = 🍎 … coloca já no site isso") e vive na faixa #hud-guide, reservada pelo agente
+ * do layout na parte de CIMA do palco — o print da live real mostrou que tudo abaixo de ~70 % da
+ * altura fica atrás do chat do TikTok.
+ *
+ * REGRAS QUE ESTE ARQUIVO OBEDECE (as mesmas do overlay.css, ver a nota "ESCALA TIPOGRÁFICA" lá):
+ *  · Nada de px, vw, vh, vmin. Só `rem` (1rem == 1 % da ALTURA do palco) e `em` para pictogramas.
+ *  · PISO DE LEGIBILIDADE: nenhum texto abaixo de --fs-mini (≈23 px equivalentes a 1080). Se algo
+ *    não couber, a informação SAI ou encurta — nunca se resolve baixando o font-size.
+ *  · Emoji pode e DEVE ser maior que o texto: num vídeo comprimido do TikTok, visto no celular a
+ *    um metro, o pictograma é o que sobrevive. Os emojis do guia ficam em --fs-hero (≈46 px).
+ *  · Visual da casa: glassmorphism + neon, vilão em --rose, herói em --emerald.
+ *
+ * O painel se defende sozinho: `overflow: hidden` + `min-height: 0` garantem que ele nunca
+ * transborde a faixa que o layout reservou, mesmo que o catálogo ganhe um nome comprido.
+ */
+
+.guide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.7rem 0.3rem;
+  border-radius: var(--radius, 0.9rem);
+  overflow: hidden;
+  transition: opacity 0.25s ease;
+}
+
+/* Acompanha o atalho H do HUD (setVisible). */
+.guide.guide-hidden { opacity: 0; }
+
+/* Cabeçalho ------------------------------------------------------------------------------
+   Uma linha só: o título à esquerda e, à direita, o PREÇO da faixa que está sendo mostrada —
+   o preço é a chave do carrossel (1 🪙 → 30 🪙 → 100 🪙) e precisa estar visível o tempo todo,
+   senão o espectador não entende por que os dois presentes aparecem juntos. */
+.guide-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.guide-title {
+  font-size: var(--fs-mini, 1.2rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--muted, #cbd5e1);
+  text-shadow: var(--text-shadow);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* O preço é um número de destaque: é ele que diz "pela MESMA moeda, os dois lados". */
+.guide-price {
+  font-size: var(--fs-nome, 1.56rem);
+  font-weight: 900;
+  color: var(--gold, #fbbf24);
+  white-space: nowrap;
+  text-shadow: var(--text-shadow), 0 0 0.5rem rgba(251, 191, 36, 0.45);
+}
+
+/* Palco do carrossel ---------------------------------------------------------------------- */
+.guide-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* O cartão é VISÍVEL POR PADRÃO e a animação só o desliza para dentro (`backwards`, nunca
+   `both` com opacity:0 no `from`): quando o rAF é estrangulado — OBS sob carga, navegador
+   embutido do TikTok, onde o quadro 0 pode ficar preso — o pior caso precisa ser "aparece sem
+   deslizar", jamais "some para sempre". Mesma lição já registrada em alerts.css/.money-card. */
+.guide-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  opacity: 1;
+  animation: guide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.guide-card.no-anim { animation: none; }
+
+@keyframes guide-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Um lado do par: 🌹 Rosa = 💣 1 bomba ------------------------------------------------------
+   Os dois lados dividem a largura em partes iguais (flex: 1 1 0) para o "×" ficar centrado e o
+   par parecer uma balança — que é exatamente a metáfora do duelo. */
+.guide-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.7rem;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.guide-side.team-villain {
+  border-color: rgba(251, 113, 133, 0.35);
+  background: linear-gradient(180deg, rgba(251, 113, 133, 0.16), rgba(251, 113, 133, 0.05));
+}
+.guide-side.team-hero {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.16), rgba(52, 211, 153, 0.05));
+}
+
+/* Faixa sem par (um preço que só tem vilão, por exemplo): um traço, nunca um presente inventado. */
+.guide-side.is-empty {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+.guide-dash { font-size: var(--fs-nome, 1.56rem); color: var(--muted, #cbd5e1); opacity: 0.6; }
+
+/* [medido] `flex-shrink: 0` NÃO é decoração aqui, é a correção de um bug de layout medido: na
+   faixa de 100 moedas o lado do herói tem 154 px e o conteúdo pede 145 px — CABE —, mas como
+   estes dois blocos eram itens flex encolhíveis com `min-width: 0`, o navegador os espremia
+   assim mesmo e o `text-overflow` cortava "Mãozinha" em "Mãoz…" com 9 px sobrando ao lado.
+   Com o encolhimento travado, quem cede espaço quando falta de verdade é .guide-extras (que é
+   `flex: 0 1 auto`), ou seja, os selos secundários — exatamente a ordem de prioridade certa. */
+.guide-gift,
+.guide-fx {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* OS EMOJIS SÃO O CONTEÚDO. Tamanho de número de destaque (≈46 px equivalentes a 1080): é o
+   que o cliente pediu quando disse "uma imagem falando que uma rosa é igual uma maçã" — a
+   pessoa entende antes de ler. */
+.guide-emoji {
+  font-size: var(--fs-hero, 2.4rem);
+  line-height: 1;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+
+/* O emoji do EFEITO é o mais importante dos dois (é a resposta da pergunta), então ganha um
+   brilho de neon na cor do time. */
+.guide-emoji-fx { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+.team-villain .guide-emoji-fx { filter: drop-shadow(0 0 0.45rem rgba(251, 113, 133, 0.75)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+.team-hero    .guide-emoji-fx { filter: drop-shadow(0 0 0.45rem rgba(52, 211, 153, 0.75)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+
+/* O nome do presente fica no piso de legibilidade: quem já conhece o emoji não precisa dele, e
+   quem não conhece precisa saber o que pedir na barra de presentes do TikTok. */
+.guide-name {
+  font-size: var(--fs-mini, 1.2rem);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: var(--text-shadow);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* O SINAL DE IGUAL — o cliente desenhou literalmente "🌹 = 💣". Ele é a gramática da tabela e
+   por isso é grande e forte, não um detalhe de pontuação. */
+.guide-eq {
+  font-size: var(--fs-nome, 1.56rem);
+  font-weight: 900;
+  color: #fff;
+  opacity: 0.85;
+  flex: 0 0 auto;
+  text-shadow: var(--text-shadow);
+}
+
+.guide-fx-text {
+  font-size: var(--fs-mini, 1.2rem);
+  font-weight: 900;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: var(--text-shadow);
+}
+.team-villain .guide-fx-text { color: var(--rose, #fb7185); }
+.team-hero    .guide-fx-text { color: var(--emerald, #34d399); }
+
+/* Efeitos secundários: SÓ os pictogramas (⚡🧊🕸️). Escrevê-los por extenso obrigaria a diminuir
+   tudo; como pictograma eles cabem, dizem "esse é mais forte" e não disputam a leitura. */
+.guide-extras {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.guide-extra {
+  font-size: var(--fs-corpo, 1.36rem);
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+
+/* O "×" central: é o duelo VILÕES × HERÓIS em miniatura. */
+.guide-vs {
+  flex: 0 0 auto;
+  font-size: var(--fs-nome, 1.56rem);
+  font-weight: 900;
+  color: var(--muted, #cbd5e1);
+  opacity: 0.75;
+  text-shadow: var(--text-shadow);
+}
+
+/* Pontinhos do carrossel — mesma linguagem do carrossel de metas (.money-dot). */
+.guide-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  height: 0.5rem;
+}
+.guide-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+.guide-dot.on { background: var(--gold, #fbbf24); transform: scale(1.35); }
+
+/* [medido] O nome do presente é a PRIMEIRA coisa a sair quando falta largura — o emoji sozinho
+   já ensina e sobrevive melhor à compressão. Mas o corte tem que acontecer só em palco de
+   verdade estreito, e não no tamanho ALVO: medido a 375×812 (o celular do cliente), #safe tem
+   exatamente 375 px de largura, então um `max-width: 380px` escondia "Rosa" e "GG" justamente
+   no caso principal — e o nome é o que o espectador precisa para achar o presente na barra do
+   TikTok. O corte desce para 300 px, que é preview espremido de verdade. */
+@container (max-width: 300px) {
+  .guide-name { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-card { animation: none !important; }
+}
+
+/* A FAIXA É DO LAYOUT, NÃO DESTE ARQUIVO ------------------------------------------------------
+ * A posição da faixa (#hud-guide / .band-guide, hoje em 71–79 % do palco) é definida em
+ * overlay.css, que é do agente do layout. Este arquivo estiliza só o CONTEÚDO do guia (.guide e
+ * seus filhos) e faz questão de não declarar `top`, `height` nem nada de geometria de faixa: se
+ * declarasse, uma futura mudança do mapa de zonas seria silenciosamente sobrescrita daqui.
+ *
+ * Enquanto a faixa oficial não existia, main.js criava uma seção equivalente na mão
+ * (ensureGuideContainer) — esse caminho continua no código como rede de segurança e é inofensivo:
+ * ele reaproveita o #hud-guide do HTML quando ele está lá, que é o caso agora.
+ */

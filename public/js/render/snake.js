@@ -16,7 +16,7 @@ const TENSION = 0.45;
 
 /** Procedural scale pattern: lighter belly band + rows of overlapping scales. */
 function makeScaleTexture() {
-  const S = 256;
+  const S = 512;  // [nitidez] escamas legíveis quando o tabuleiro é ampliado
   const c = makeCanvas(S, S);
   const ctx = c.getContext('2d');
   // Base: mid grey-white so the vertex colour dominates; lighter belly in the centre (u = 0.5).

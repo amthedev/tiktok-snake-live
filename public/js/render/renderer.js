@@ -28,9 +28,13 @@ import { LeaderOrb } from './leaderOrb.js';
 import { frameCamera, FOV } from './camera.js';
 
 const QUALITY = {
-  low: { pixelRatio: 1, shadows: false, shadowMap: 0, bloom: false, particles: 600 },
-  medium: { pixelRatio: 1.5, shadows: true, shadowMap: 1024, bloom: false, particles: 1200 },
-  high: { pixelRatio: 2, shadows: true, shadowMap: 2048, bloom: true, particles: 2000 }
+  // [nitidez] 2026-09-04: tetos de pixelRatio elevados. O overlay é capturado pelo OBS e depois
+  // reescalado (e o cliente também dá zoom para conferir detalhe): renderizar em 2x numa tela
+  // Retina já entregava textura borrada ao ampliar. 3x custa ~2,2x mais pixels que 2x, o que a
+  // GPU aguenta neste cenário (uma cena simples, poucos draw calls), e mantém a imagem limpa.
+  low: { pixelRatio: 1.5, shadows: false, shadowMap: 1024, bloom: false, particles: 600 },
+  medium: { pixelRatio: 2, shadows: true, shadowMap: 2048, bloom: false, particles: 1200 },
+  high: { pixelRatio: 3, shadows: true, shadowMap: 4096, bloom: true, particles: 2000 }
 };
 
 const PHASE_TINT = { countdown: 0x22d3ee, playing: 0x22d3ee, won: 0xfbbf24, lost: 0xff3355 };

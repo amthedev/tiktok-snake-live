@@ -16,7 +16,7 @@ const PHASE_COLORS = {
 
 /** Radial-gradient texture used for the ground glow. */
 function makeGlowTexture() {
-  const c = makeCanvas(256, 256);
+  const c = makeCanvas(512, 512);  // [nitidez] textura do tabuleiro ao ampliar
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(128, 128, 20, 128, 128, 128);
   g.addColorStop(0, 'rgba(255,255,255,0.9)');

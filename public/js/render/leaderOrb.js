@@ -58,7 +58,7 @@ export class LeaderOrb {
     this.group.add(this.orbit);
 
     // Avatar sprite inside the sphere.
-    this.avatarCanvas = makeCanvas(256, 256);
+    this.avatarCanvas = makeCanvas(512, 512);  // [nitidez] foto do top gifter em close
     this.avatarTex = canvasTexture(this.avatarCanvas);
     this.avatarMat = new THREE.SpriteMaterial({ map: this.avatarTex, transparent: true, depthWrite: false, depthTest: false });
     this.avatarSprite = new THREE.Sprite(this.avatarMat);
@@ -79,7 +79,7 @@ export class LeaderOrb {
     // a 30 px, na faixa de monetização, onde ele pertence. Aqui fica só o rosto.
     // O canvas e a textura continuam existindo (setLeader/_drawLabel seguem funcionando e são
     // baratos) — apenas nada é adicionado ao grupo, então nada é desenhado sobre o tabuleiro.
-    this.labelCanvas = makeCanvas(512, 176);
+    this.labelCanvas = makeCanvas(1024, 352);  // [nitidez] nome + moedas sem serrilhado
     this.labelTex = canvasTexture(this.labelCanvas);
     this.labelMat = new THREE.SpriteMaterial({ map: this.labelTex, transparent: true, depthWrite: false, depthTest: false });
     this.labelSprite = new THREE.Sprite(this.labelMat);

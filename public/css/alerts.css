@@ -342,10 +342,11 @@
   justify-content: center;
   width: 100%;
   pointer-events: none;
-  /* [celular] A faixa de monetização é o último lugar seguro antes da zona morta do TikTok
-     (83 %). O cartão NÃO pode transbordar dela: medido, ele vazava até 86,6 % e ia parar atrás da
-     barra de presentes do app. `min-height: 0` deixa o filho flex encolher de verdade e o
-     `overflow: hidden` é a rede de segurança final. */
+  /* [live-real] A faixa SUBIU: o carrossel deixou de ser o rodapé de monetização (72–79 %, que o
+     print da live mostrou coberto pelo chat) e agora fica dentro do bloco principal, logo abaixo
+     do duelo — ver --money-h em overlay.css. O motivo de `min-height: 0` + `overflow: hidden`
+     continua o mesmo e continua valendo: a faixa tem altura fixa e o cartão não pode transbordar
+     dela, senão empurra a barra de progresso para dentro do tabuleiro. */
   min-height: 0;
   overflow: hidden;
 }
@@ -365,11 +366,9 @@
   animation: money-hit 1.2s ease;
 }
 
-/* [celular] A faixa de monetização (72–79 %) é dividida com o painel do duelo: o cartão de metas
-   fica com a metade de baixo (2,8 % da altura do palco — ver --duel-h em overlay.css).
-   O min-height era 3.9rem, calculado quando o cartão ainda empilhava título e barra; agora que ele
-   é uma linha só (ver .money-card acima), 3.9rem sozinho estourava a faixa e empurrava o cartão
-   por cima do painel do duelo. 2.1rem é a altura da linha (barra de 1,9 rem + folga). */
+/* [live-real] O carrossel fica logo abaixo do duelo, dentro do bloco principal (--money-h = 3,4 u
+   em overlay.css). Continua sendo UMA LINHA de 2,1 rem (barra de 1,9 rem + folga): a faixa é
+   generosa o bastante para a linha, e não o bastante para voltar a empilhar título e barra. */
 .money-stage { position: relative; min-height: 2.1rem; }
 
 /* O cartão é visível POR PADRÃO e a animação só o desliza para dentro (backwards, não `both`).
@@ -403,6 +402,44 @@
 .money-card > .duel-bar { flex: 1 1 auto; min-width: 0; }
 /* O ranking também é uma linha só: título + o líder (ver o corte para TOP 1 em goals.js). */
 .money-card.card-rank > .rank-list { flex: 1 1 auto; min-width: 0; }
+
+/* [live-real] BUG MEDIDO E CORRIGIDO. O cartão de meta tem TRÊS filhos, não dois: cardGoal()
+   (goals.js) monta cabeçalho + barra + a frase "Faltam N 🪙 dos HERÓIS". A frase não tinha regra
+   de flex, então valia o padrão `flex: 0 1 auto` com `min-width: auto` — ou seja, ela se recusava
+   a encolher abaixo do próprio texto e comia a linha inteira. Medido: a .goal-bar ficava com
+   0,5 % da largura do palco, isto é, a BARRA DA META ERA INVISÍVEL e o "37.972 / 192.000" dentro
+   dela também. Passou despercebido enquanto o cartão vivia na faixa de baixo, que ninguém
+   conseguia ler de qualquer jeito — subir o carrossel para o bloco principal é que revelou o
+   defeito.
+   Atenção ao detalhe que fez a primeira tentativa de correção falhar: só pôr `flex-grow` na barra
+   NÃO resolve. O texto dela ("37.972 / 192.000") é posicionado em absoluto, então a largura
+   natural da barra é ZERO — com `flex-basis: auto` ela entra na conta valendo 0 px, e `flex-grow`
+   só reparte a sobra, que a frase (bem mais comprida) já tinha engolido. A barra precisa de uma
+   BASE explícita para ter o que defender. */
+.money-card > .money-sub {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.money-card > .goal-bar,
+.money-card > .duel-bar { flex: 1 1 22%; }
+
+/* [live-real] MEDIDO EM 375×812, DEPOIS DA INVERSÃO: repartir a linha em três ainda não fechava.
+   O cartão de meta saía assim na tela, com AS DUAS pontas cortadas no meio da palavra:
+       "META: 🛡️ ESCUDO L…"   (pedia 160 px, recebeu 123)
+       "Faltam 154.028 🪙 dos …" (pedia 157 px, recebeu 124)
+   Reticências no meio do nome do prêmio e no meio do número são pior que não mostrar: o público
+   não lê "ESCUDO LENDÁRIO" nem "154.028", e é exatamente esse par que faz alguém mandar presente.
+   Baixar o font-size está proibido (piso de 22 px), então a saída é tirar um dos três — e o
+   candidato é a frase, porque ela DUPLICA a barra: `.goal-bar` já mostra "37.972 / 192.000", que
+   é o mesmo "quanto falta" com número exato e sem depender de caber numa linha.
+   Sobram dois elementos, ambos inteiros: o título com a largura que o texto pede e a barra
+   elástica com o resto. É a regra do cliente aplicada ao pé da letra — menos elementos, cada um
+   maior. O nó continua sendo criado por goals.js (arquivo do outro agente), só não ocupa espaço. */
+.money-card.card-goal > .money-sub { display: none; }
+.money-card.card-goal > .money-head { flex: 0 0 auto; }
 
 .money-head {
   display: flex;
@@ -461,17 +498,18 @@
   transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.goal-bar-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-corpo);
-  font-weight: 900;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
-}
+/* [live-real] O NÚMERO DENTRO DA BARRA ("37.972 / 192.000") SAIU DA TELA.
+   Com o cartão em uma linha de três itens (título · barra · "Faltam N"), a barra fica com ~21 %
+   da largura do palco — e "37.972 / 192.000" no piso de legibilidade não cabe nisso: medido, ele
+   quebrava em DUAS linhas e transbordava a barra por cima e por baixo (é o que aparece no
+   screenshot como um borrão sobre a barra). Baixar a fonte para caber está proibido pela regra do
+   projeto, então a informação é que precisa sair — e ela é justamente a dispensável: a MESMA
+   contagem já está ao lado, em "Faltam 154.028 🪙 dos HERÓIS", que é a versão acionável (diz o que
+   falta, não um par de números para o espectador subtrair de cabeça).
+   O nó continua sendo criado por goals.js (arquivo de outro agente) e continua alimentando o
+   `aria` e qualquer leitura futura; só não é pintado. A barra segue contando a história pelo
+   preenchimento, que é o que se lê de relance num vídeo comprimido. */
+.goal-bar-text { display: none; }
 
 /* Ranking ---------------------------------------------------------------- */
 

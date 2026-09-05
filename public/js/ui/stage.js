@@ -26,13 +26,20 @@
 export const STAGE_ASPECT = 9 / 16;
 
 /** Safe-area map, in % of the stage height. Mirrors --zone-* in overlay.css and BAND_PORTRAIT
- *  in render/camera.js — keep the three in sync. */
+ *  in render/camera.js — keep the three in sync.
+ *
+ *  [live-real] 2026-09-05: a prioridade vertical foi INVERTIDA depois do print de uma live real.
+ *  O chat do TikTok sobe muito mais do que se supunha e cobre tudo abaixo de ~70 %, então o que
+ *  importa (placar, duelo, metas) mudou de 72–79 % para 11–30 %, logo abaixo da barra do app —
+ *  a faixa mais visível da tela. A metade de baixo ficou com a tabela de presentes (71–79 %, o
+ *  último trecho ainda legível) e com a zona morta. */
+// [live real] Mapa alinhado ao que o print da live mostrou: o chat do TikTok invade tudo abaixo
+// de ~79 %, então a tabela de presentes subiu para o bloco principal e o tabuleiro herdou o resto.
 export const ZONES = [
   { from: 0,  to: 11,  kind: 'dead',  label: 'ZONA MORTA · barra do TikTok' },
-  { from: 11, to: 24,  kind: 'head',  label: 'CABEÇALHO · placar e status' },
-  { from: 24, to: 72,  kind: 'board', label: 'TABULEIRO · área segura' },
-  { from: 72, to: 79,  kind: 'money', label: 'MONETIZAÇÃO · metas e presentes' },
-  { from: 79, to: 100, kind: 'dead',  label: 'ZONA MORTA · comentários e presentes' }
+  { from: 11, to: 36,  kind: 'head',  label: 'PRINCIPAL · placar, duelo, ranking e presentes' },
+  { from: 36, to: 79,  kind: 'board', label: 'TABULEIRO · área segura' },
+  { from: 79, to: 100, kind: 'dead',  label: 'ZONA MORTA · chat e presentes do TikTok' }
 ];
 
 /**
