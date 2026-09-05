@@ -871,7 +871,7 @@ function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
   // linha reta ele produz travessias de 15 casas de ponta a ponta — a imagem robótica que o
   // cliente reclamou. Nesse caso cedemos o passo para o L1, que pontua o tabuleiro de verdade e
   // hoje penaliza a continuação da reta. Custa pouca eficiência e ganha traçado de jogador.
-  if (fill < PATH_MAX_FILL && straightRunOf(w, snake, 5) < 5) {
+  if (fill < PATH_MAX_FILL && straightRunOf(w, snake, 3) < 3) {
     // [show] A ordem vem do ciclo da rodada (cada rodada tem seed própria), então rodadas
     // diferentes desenham caminhos diferentes para a mesma maçã.
     // [show] A ordem muda ao longo da própria rodada, não só entre rodadas: a cada ~7 casas
@@ -925,7 +925,7 @@ function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
     //     depois de ~4 casas em linha o incentivo some e curvar passa a ser competitivo.
     // Reta curta ainda flui; reta longa passa a CUSTAR, para a cobra desenhar escadinhas em vez
     // de atravessar o tabuleiro inteiro em linha.
-    if (CAND_DIR[i] === prevDir) score += straightRun >= 4 ? -9 * (straightRun - 3) : 12 - straightRun * 3;
+    if (CAND_DIR[i] === prevDir) score += straightRun >= 2 ? -16 * (straightRun - 1) : 6 - straightRun * 6;
     // (e) keep a foot in the cycle order as the board fills — smooth handover to L2 instead
     //     of a visible switch. Weight rises from 0 to ~12 between 40 % and SCORE_MAX_FILL.
     const t = (fill - 0.25) / (SCORE_MAX_FILL - 0.25);
