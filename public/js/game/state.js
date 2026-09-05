@@ -22,9 +22,9 @@ import { DIRS, buildCycle, distFwd, nextMove } from '../ai/hamiltonian.js';
 /** Defaults mirrored from SPEC §3 so the state works with a partial config (tests, panel). */
 const DEFAULTS = Object.freeze({
   gridSize: 16,
-  baseSpeed: 6,
-  speedPerSegment: 0.03,
-  maxSpeed: 13,
+  baseSpeed: 11,
+  speedPerSegment: 0.16,
+  maxSpeed: 28,
   bombShrink: 3,
   bombFuseSec: 90,
   maxBombsOnBoard: 60,

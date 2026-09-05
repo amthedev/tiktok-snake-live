@@ -514,9 +514,13 @@ const CAND_OK = new Int32Array(4);
 //   PATH/SCORE 0.45/0.50 -> 25.68   (best; the values used here)
 //   PATH/SCORE 0.30/0.35 -> 28.41
 /** Fill ratio above which the shortest-path layer is switched off entirely (endgame). */
-const PATH_MAX_FILL = 0.45;
+// [show] Subidos de 0,45/0,50 para 0,62/0,68: acima desses limiares a política do ciclo assume,
+// e ela é varredura pura — visualmente robótica. Adiar a troca deixa a cobra "jogando" por muito
+// mais tempo. A segurança não depende destes números (vem do invariante de ordem), então o único
+// custo possível seria eficiência no fim de jogo, medida nos testes.
+const PATH_MAX_FILL = 0.62;
 /** Fill ratio above which grid scoring gives way to the pure cycle policy. */
-const SCORE_MAX_FILL = 0.5;
+const SCORE_MAX_FILL = 0.68;
 
 // Scratch buffers for BFS / flood fill, grown on demand and reused across calls so that a
 // nextMove call allocates nothing in steady state (the game loop runs this every tick).
@@ -547,7 +551,29 @@ function manhattan(w, a, b) {
  * `from`, stopping at `to`. Returns the first step of a shortest path (the neighbour of `from`
  * to move onto), or -1 when `to` is unreachable. `to === from` returns -1.
  */
-function bfsFirstStep(nbr, blocked, blockGen, from, to) {
+// [show] Ordens de varredura das 4 direções. O BFS sempre explorava 0,1,2,3 e, entre vários
+// caminhos igualmente curtos, devolvia sempre o mesmo — daí a cobra atravessar o tabuleiro em
+// linha reta com o mesmo desenho toda rodada. Sorteando a ordem por rodada, o caminho continua
+// sendo O MAIS CURTO (o BFS garante isso), mas o traçado muda.
+const DIR_ORDERS = [
+  [0, 1, 2, 3], [1, 2, 3, 0], [2, 3, 0, 1], [3, 0, 1, 2],
+  [0, 2, 1, 3], [1, 3, 0, 2], [2, 0, 3, 1], [3, 1, 2, 0],
+];
+
+/** [show] Quantas casas a cobra já vem em linha reta, lidas do corpo (limitado a `max`). */
+function straightRunOf(w, snake, max) {
+  if (snake.length < 3) return 0;
+  const d0 = dirBetweenCells(w, snake[1], snake[0]);
+  if (d0 < 0) return 0;
+  let n = 0;
+  for (let k = 1; k < snake.length - 1 && n < max; k++) {
+    if (dirBetweenCells(w, snake[k + 1], snake[k]) !== d0) break;
+    n++;
+  }
+  return n;
+}
+
+function bfsFirstStep(nbr, blocked, blockGen, from, to, order) {
   if (to < 0 || to === from) return -1;
   const gen = ++BFS_GEN;
   const mark = BFS_MARK;
@@ -561,7 +587,8 @@ function bfsFirstStep(nbr, blocked, blockGen, from, to) {
   while (qh < qt) {
     const c = queue[qh++];
     const base = c * 4;
-    for (let d = 0; d < 4; d++) {
+    for (let oi = 0; oi < 4; oi++) {
+      const d = order ? order[oi] : oi;
       const nx = nbr[base + d];
       if (nx < 0 || mark[nx] === gen) continue;
       if (nx !== to && blocked[nx] === blockGen) continue;
@@ -840,8 +867,20 @@ function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
   // --- L0: shortest path with tail-reachability verification ------------------------------
   // Only while the board is not crowded; this is the layer that makes the snake go straight
   // at the apple like a player instead of sweeping the board.
-  if (fill < PATH_MAX_FILL) {
-    const first = bfsFirstStep(nbr, occ, occGen, head, target);
+  // [show] O caminho curto é ótimo para chegar na maçã, mas quando a cobra já vem há 5+ casas em
+  // linha reta ele produz travessias de 15 casas de ponta a ponta — a imagem robótica que o
+  // cliente reclamou. Nesse caso cedemos o passo para o L1, que pontua o tabuleiro de verdade e
+  // hoje penaliza a continuação da reta. Custa pouca eficiência e ganha traçado de jogador.
+  if (fill < PATH_MAX_FILL && straightRunOf(w, snake, 5) < 5) {
+    // [show] A ordem vem do ciclo da rodada (cada rodada tem seed própria), então rodadas
+    // diferentes desenham caminhos diferentes para a mesma maçã.
+    // [show] A ordem muda ao longo da própria rodada, não só entre rodadas: a cada ~7 casas
+    // percorridas o BFS passa a preferir outra direção no desempate. Como todos os caminhos que
+    // ele devolve têm o MESMO comprimento mínimo, a cobra continua tão eficiente quanto antes —
+    // só deixa de desenhar sempre a mesma linha. É o que transforma a travessia reta e previsível
+    // numa rota escalonada, que é como um jogador humano realmente se move.
+    const fase = ((cycle.seed >>> 0) + ((len / 7) | 0)) % DIR_ORDERS.length;
+    const first = bfsFirstStep(nbr, occ, occGen, head, target, DIR_ORDERS[fase]);
     if (first >= 0) {
       // The first step must ALSO be in the safe set — the invariant is never negotiable.
       let ci = -1;
@@ -860,6 +899,9 @@ function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
   // --- L1: score every safe candidate on real board terms ----------------------------------
   const rng = opts && typeof opts.rng === 'function' ? opts.rng : null;
   const prevDir = dirBetweenCells(w, snake.length >= 2 ? snake[1] : -1, head);
+  // [show] Quantas casas a cobra já vem andando em linha reta, lidas do próprio corpo. É o que
+  // permite o bônus de fluidez decair: reta curta ainda flui, reta longa vira varredura.
+  const straightRun = straightRunOf(w, snake, 8);
   let bestI = -1;
   let bestScore = -Infinity;
   for (let i = 0; i < count; i++) {
@@ -876,8 +918,14 @@ function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
     else score += Math.min(room, len * 2) * 0.25;
     // (c) tail reachability bonus — a body that can still chase its own tail is never stuck.
     if (tailReachableAfter(nbr, snake, c, eats)) score += 25;
-    // (d) fluency: going straight reads better on stream than a needless turn.
-    if (CAND_DIR[i] === prevDir) score += 12;
+    // (d) [show] Fluidez com teto. O bônus de seguir reto era fixo (+12) e produzia retas de até
+    //     ~15 casas — a cobra atravessava o tabuleiro inteiro em linha, que é exatamente a cara
+    //     de robô varrendo que o cliente reclamou. Agora o bônus DECAI conforme a reta se estica:
+    //     nas primeiras casas ainda vale a pena seguir (evita zigue-zague sem propósito), mas
+    //     depois de ~4 casas em linha o incentivo some e curvar passa a ser competitivo.
+    // Reta curta ainda flui; reta longa passa a CUSTAR, para a cobra desenhar escadinhas em vez
+    // de atravessar o tabuleiro inteiro em linha.
+    if (CAND_DIR[i] === prevDir) score += straightRun >= 4 ? -9 * (straightRun - 3) : 12 - straightRun * 3;
     // (e) keep a foot in the cycle order as the board fills — smooth handover to L2 instead
     //     of a visible switch. Weight rises from 0 to ~12 between 40 % and SCORE_MAX_FILL.
     const t = (fill - 0.25) / (SCORE_MAX_FILL - 0.25);
@@ -888,7 +936,9 @@ function proPick(cycle, nbr, snake, apple, opts, count, fill, head, w, n) {
     // dead. 7 is large enough to break genuine near-ties (two moves that are equally close and
     // differ only by the straight bonus) and small enough that it never overrides a move that
     // is actually closer to the food.
-    if (rng) score += rng() * 7;
+    // [show] Amplitude subiu de 7 para 11: com o bônus de reta decaindo, os empates ficaram mais
+    // frequentes e o sorteio passa a desenhar trajetos genuinamente diferentes a cada rodada.
+    if (rng) score += rng() * 11;
     if (score > bestScore) { bestScore = score; bestI = i; }
   }
   return bestI;
