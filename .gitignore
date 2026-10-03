@@ -5,3 +5,4 @@ data/*.corrupt-*
 *.log
 .DS_Store
 .claude/settings.local.json
+minecraft/data/

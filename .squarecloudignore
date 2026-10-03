@@ -8,3 +8,4 @@ test/
 .git/
 .gitignore
 .DS_Store
+minecraft/

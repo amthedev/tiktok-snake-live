@@ -113,6 +113,29 @@ repositório.
   de hospedagem). Para live, o placar da sessão é o que importa.
 - No OBS, aponte a fonte Navegador para a URL pública (`https://SEU-SUBDOMINIO.squareweb.app/?obs=1`).
 
+## Servidor de Minecraft
+
+O repositório também sobe um servidor de Minecraft ([Paper](https://papermc.io), compatível com
+plugins) — independente do jogo da cobra. Precisa do **Java 25** ou mais novo
+([Temurin 25](https://adoptium.net)).
+
+```bash
+MC_EULA=true npm run minecraft
+```
+
+- `MC_EULA=true` significa que você leu e aceita a [EULA do Minecraft](https://aka.ms/MinecraftEULA)
+  — sem isso o servidor não sobe. Dá para deixar fixo no `.env`.
+- Na primeira vez ele baixa a versão mais nova do Paper com build **STABLE**, confere o SHA-256 e
+  guarda tudo em `minecraft/data/` (jar, mundo, logs, plugins — fora do git). Sem internet, usa o
+  jar já baixado.
+- Conecte no Minecraft em **`localhost`** (porta 25565). Para amigos entrarem, libere a porta
+  25565 no roteador ou use um túnel como o [playit.gg](https://playit.gg).
+- Digite `stop` no console para desligar salvando o mundo (Ctrl+C também salva).
+- Configuração: `MC_VERSION`, `MC_MEMORY`, `MC_PORT` e `JAVA_BIN` no `.env` (veja `.env.example`);
+  regras do mundo em `minecraft/data/server.properties` (criado a partir de
+  `minecraft/server.properties` na primeira execução).
+- Plugins: coloque o `.jar` em `minecraft/data/plugins/` e reinicie.
+
 ## Problemas comuns
 
 **"Failed to sign a request: This endpoint requires a Business plan"**
@@ -143,5 +166,6 @@ as regras de presente e a normalização dos eventos do TikTok.
 server/          servidor (express + ws + ponte TikTok + placar persistente em data/stats.json)
 public/          jogo (overlay), painel, renderização 3D (three.js), IA, HUD
 config/gifts.json  regras dos presentes
+minecraft/       servidor de Minecraft (npm run minecraft; mundo e jar em minecraft/data/)
 docs/SPEC.md     contrato técnico completo (em inglês)
 ```

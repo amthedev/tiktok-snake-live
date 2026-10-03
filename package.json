@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "dev": "node --env-file-if-exists=.env --watch server/index.js",
+    "minecraft": "node --env-file-if-exists=.env minecraft/start.js",
     "test": "node --test"
   },
   "keywords": [],
